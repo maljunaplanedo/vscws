@@ -111,6 +111,76 @@ cmd_presets() {
   done
 }
 
+# generate_devcontainer PRESET NAME OUTDIR
+# Deep-merges presets/_common.json with the preset, then applies name, Claude dir and mode.
+generate_devcontainer() {
+  local preset="$1" name="$2" out="$3" pdir f
+  pdir="$(preset_dir "$preset")"
+  mkdir -p "$out"
+  jq -s \
+    --arg name "$name" \
+    --arg claude_dir "$VSCWS_CLAUDE_DIR" \
+    --arg mode "$VSCWS_MODE" '
+    def dedupe: reduce .[] as $x ([]; if any(.[]; . == $x) then . else . + [$x] end);
+    def merge(a; b):
+      (a) as $a | (b) as $b |
+      if ($a | type) == "object" and ($b | type) == "object" then
+        reduce ($b | keys_unsorted[]) as $k ($a; .[$k] = merge($a[$k]; $b[$k]))
+      elif ($a | type) == "array" and ($b | type) == "array" then ($a + $b | dedupe)
+      else $b end;
+    merge(.[0]; .[1])
+    | del(.description)
+    | .name = $name
+    | if .build then del(.image) else . end
+    | .mounts = ((.mounts // []) | map(if type == "string" then gsub("__VSCWS_CLAUDE_DIR__"; $claude_dir) else . end))
+    | if $mode == "remote" then .runArgs = (((.runArgs // []) + ["--network=host"]) | dedupe) else . end
+  ' "$PRESETS_DIR/_common.json" "$pdir/devcontainer.json" > "$out/devcontainer.json"
+  # Copy everything else the preset ships (Dockerfile, scripts).
+  for f in "$pdir"/*; do
+    [ -e "$f" ] || continue
+    [ "$(basename "$f")" = devcontainer.json ] && continue
+    cp -R "$f" "$out/"
+  done
+}
+
+cmd_new() {
+  need jq
+  local name="" preset="" repo="" ws tmp answer
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --preset) [ $# -ge 2 ] || die "--preset needs a value"; preset="$2"; shift 2 ;;
+      --repo)   [ $# -ge 2 ] || die "--repo needs a value";   repo="$2";   shift 2 ;;
+      -*)       die "unknown option '$1' (usage: vscws new NAME --preset P [--repo URL])" ;;
+      *)        [ -z "$name" ] || die "unexpected argument '$1'"; name="$1"; shift ;;
+    esac
+  done
+  [ -n "$name" ]   || die "usage: vscws new NAME --preset P [--repo URL]"
+  validate_name "$name"
+  [ -n "$preset" ] || die "--preset is required (see: vscws presets)"
+  [ -f "$(preset_dir "$preset")/devcontainer.json" ] || die "unknown preset '$preset' (see: vscws presets)"
+  ensure_root
+  ws="$(ws_path "$name")"
+  [ ! -e "$ws" ] || die "workspace already exists: $ws"
+  mkdir -p "$VSCWS_ROOT"
+  tmp="$(mktemp -d "$VSCWS_ROOT/.vscws-tmp.XXXXXX")"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp'" EXIT
+  if [ -n "$repo" ]; then
+    die "--repo is not implemented yet"
+  else
+    mkdir "$tmp/ws"
+  fi
+  generate_devcontainer "$preset" "$name" "$tmp/ws/.devcontainer"
+  jq -n --arg name "$name" --arg preset "$preset" \
+        --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg v "$VSCWS_VERSION" \
+        '{name: $name, preset: $preset, created: $created, vscws: $v}' > "$tmp/ws/.vscws.json"
+  mv "$tmp/ws" "$ws"
+  rm -rf "$tmp"
+  trap - EXIT
+  info "created $ws (preset: $preset)"
+  info "next: vscws open $name"
+}
+
 main() {
   if [ $# -eq 0 ]; then usage >&2; exit 1; fi
   local cmd="$1"; shift
