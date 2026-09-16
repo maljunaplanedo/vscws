@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# vscws — create per-project VS Code dev container workspaces from presets.
+# Compatible with bash 3.2 (macOS default). Dependencies: jq; git for --repo; docker for rm.
+set -euo pipefail
+
+VSCWS_VERSION="0.1.0"
+
+die()  { printf 'vscws: %s\n' "$*" >&2; exit 1; }
+info() { printf '%s\n' "$*"; }
+
+usage() {
+  cat <<'EOF'
+Usage: vscws <command> [args]
+
+Commands:
+  new NAME --preset P [--repo URL]   create workspace NAME from preset P
+  ls                                 list workspaces
+  presets                            list available presets
+  open NAME                          print (or run) the VS Code command to open NAME
+  rm NAME                            delete workspace NAME (asks you to type the name)
+  --version, -v                      print version
+  --help, -h                         this help
+
+Config file: ~/.config/vscws/config with VSCWS_ROOT, VSCWS_SSH_HOST,
+VSCWS_CLAUDE_DIR (default ~/.claude), VSCWS_MODE (remote|local, auto-detected).
+EOF
+}
+
+# Directory of the real script, following symlinks without readlink -f (macOS).
+resolve_self_dir() {
+  local src="$0" dir
+  while [ -L "$src" ]; do
+    dir="$(cd "$(dirname "$src")" && pwd -P)"
+    src="$(readlink "$src")"
+    case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+  done
+  cd "$(dirname "$src")" && pwd -P
+}
+
+BIN_DIR="$(resolve_self_dir)"
+REPO_DIR="$(cd "$BIN_DIR/.." && pwd -P)"
+PRESETS_DIR="${VSCWS_PRESETS_DIR:-$REPO_DIR/presets}"
+CONFIG_FILE="${VSCWS_CONFIG:-$HOME/.config/vscws/config}"
+
+need() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required but not installed (see README: Prerequisites)"; }
+
+# Single-quote a string for writing into the shell-sourceable config file.
+sq() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
+default_mode() { case "$(uname -s)" in Darwin) echo local ;; *) echo remote ;; esac; }
+
+# Load ~/.config/vscws/config. Environment variables win over the file.
+load_config() {
+  local root="${VSCWS_ROOT:-}" host="${VSCWS_SSH_HOST:-}" cdir="${VSCWS_CLAUDE_DIR:-}" mode="${VSCWS_MODE:-}"
+  if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck disable=SC1090
+    . "$CONFIG_FILE"
+  fi
+  if [ -n "$root" ]; then VSCWS_ROOT="$root"; fi
+  if [ -n "$host" ]; then VSCWS_SSH_HOST="$host"; fi
+  if [ -n "$cdir" ]; then VSCWS_CLAUDE_DIR="$cdir"; fi
+  if [ -n "$mode" ]; then VSCWS_MODE="$mode"; fi
+  VSCWS_ROOT="${VSCWS_ROOT:-}"
+  VSCWS_SSH_HOST="${VSCWS_SSH_HOST:-}"
+  VSCWS_CLAUDE_DIR="${VSCWS_CLAUDE_DIR:-$HOME/.claude}"
+  VSCWS_MODE="${VSCWS_MODE:-$(default_mode)}"
+  case "$VSCWS_MODE" in remote|local) ;; *) die "VSCWS_MODE must be 'remote' or 'local' (got '$VSCWS_MODE')" ;; esac
+}
+
+# Make sure VSCWS_ROOT is known. On the first interactive run, ask and write the config file.
+ensure_root() {
+  if [ -n "$VSCWS_ROOT" ]; then return 0; fi
+  if [ ! -t 0 ]; then die "VSCWS_ROOT is not set; create $CONFIG_FILE (see README: Install vscws)"; fi
+  local root host=""
+  printf 'Workspace root directory [%s/ws]: ' "$HOME"
+  read -r root
+  root="${root:-$HOME/ws}"
+  case "$root" in "~/"*) root="$HOME/${root#\~/}" ;; "~") root="$HOME" ;; esac
+  if [ "$VSCWS_MODE" = remote ]; then
+    printf 'SSH host alias your laptop uses for this machine (for "vscws open", may be empty): '
+    read -r host
+  fi
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  {
+    printf 'VSCWS_ROOT=%s\n' "$(sq "$root")"
+    printf 'VSCWS_SSH_HOST=%s\n' "$(sq "$host")"
+    printf 'VSCWS_CLAUDE_DIR=%s\n' "$(sq "$VSCWS_CLAUDE_DIR")"
+  } > "$CONFIG_FILE"
+  info "wrote $CONFIG_FILE"
+  VSCWS_ROOT="$root"
+  VSCWS_SSH_HOST="$host"
+}
+
+ws_path() { printf '%s/%s' "$VSCWS_ROOT" "$1"; }
+
+validate_name() {
+  case "$1" in ""|.*|-*) die "invalid workspace name '$1'" ;; esac
+  printf '%s' "$1" | grep -Eq '^[A-Za-z0-9._-]+$' || die "invalid workspace name '$1' (allowed: letters, digits, . _ -)"
+}
+
+preset_dir() { printf '%s/%s' "$PRESETS_DIR" "$1"; }
+
+main() {
+  if [ $# -eq 0 ]; then usage >&2; exit 1; fi
+  local cmd="$1"; shift
+  case "$cmd" in
+    -h|--help|help)       usage ;;
+    -v|--version|version) info "vscws $VSCWS_VERSION" ;;
+    presets)              cmd_presets "$@" ;;
+    new|ls|open|rm)       load_config; "cmd_$cmd" "$@" ;;
+    *)                    die "unknown command '$cmd' (try: vscws --help)" ;;
+  esac
+}
+
+main "$@"
