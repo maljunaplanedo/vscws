@@ -112,12 +112,13 @@ Detects the platform from `uname`. Idempotent: every step checks before acting a
 
 Content of `_common.json`:
 
-- `image`: `mcr.microsoft.com/devcontainers/base:ubuntu` (tracks the latest Ubuntu LTS; non-root user `vscode`). Presets with a Dockerfile use `build` instead and `FROM` the same image.
+- `image`: `mcr.microsoft.com/devcontainers/base:ubuntu` (documented as tracking the latest Ubuntu LTS, currently 26.04; non-root user `vscode`, uid 1000; multi-arch so Apple Silicon works natively). Presets with a Dockerfile use `build` instead and `FROM` the same image.
 - `workspaceMount` / `workspaceFolder`: bind the workspace directory to the **identical absolute path** inside the container, using `${localWorkspaceFolder}`. This is what makes compose bind mounts like `./:/app` work with Docker-outside-of-Docker, and keeps Claude's per-project state keyed the same inside and outside.
 - `features`:
   - `ghcr.io/devcontainers/features/docker-outside-of-docker` — docker CLI + compose, mounts the host socket.
   - `ghcr.io/devcontainers/features/github-cli`.
-  - `ghcr.io/anthropics/devcontainer-features/claude-code` — installs the CLI for the integrated terminal and adds the `anthropic.claude-code` extension. The VS Code panel bundles its own CLI anyway; this is for the terminal.
+  - `ghcr.io/devcontainers/features/node` with `version: lts` — Node is a common project need and the Claude feature installs through npm.
+  - `ghcr.io/anthropics/devcontainer-features/claude-code:1` — installs the CLI for the integrated terminal and adds the `anthropic.claude-code` extension. The VS Code panel bundles its own CLI anyway; this is for the terminal. Feature has no options.
 - `mounts`: `source=<VSCWS_CLAUDE_DIR>,target=/home/vscode/.claude,type=bind`. The source is substituted by `vscws new` from config (placeholder `__VSCWS_CLAUDE_DIR__`). If `~/.config/gh` exists on the host at generation time, it is also mounted to `/home/vscode/.config/gh` so the `gh` login is shared.
 - `containerEnv`: `CLAUDE_CONFIG_DIR=/home/vscode/.claude`.
 - `customizations.vscode.extensions`: `anthropic.claude-code`, `eamodio.gitlens`, `ms-azuretools.vscode-containers`.
@@ -134,11 +135,10 @@ Generated object (platform dependent):
 Every preset is "latest stable at build time". Nothing is pinned. `vscws rebuild` moves everything forward.
 
 - **go**
-  - Feature `ghcr.io/devcontainers/features/go` with `version: latest`. Installs gopls, delve, and the standard tool set the Go extension expects.
-  - golangci-lint: latest stable via its official install script in a `postCreateCommand` (or the feature's golangci-lint option if it supports `latest`; verified during implementation).
+  - Feature `ghcr.io/devcontainers/features/go` with `version: latest` and `golangciLintVersion: latest`. The feature installs Go, gopls, delve and golangci-lint (latest stable through its official installer when set to `latest`). Verified against the feature's source.
   - Extensions: `golang.go`.
 - **java**
-  - Feature `ghcr.io/devcontainers/features/java` with `version: latest` (newest GA), Temurin distribution, `installMaven: true`, `installGradle: true`, both `latest`. README documents how to pin an LTS instead.
+  - Feature `ghcr.io/devcontainers/features/java` with `version: latest`, `jdkDistro: tem` (Temurin), `installMaven: true`, `mavenVersion: latest`, `installGradle: true`, `gradleVersion: latest`. The feature has no `lts` value; README documents pinning by number (e.g. `"version": "25"`) for LTS.
   - Extensions: `vscjava.vscode-java-pack`.
 - **cpp**
   - Dockerfile on top of the base image:
