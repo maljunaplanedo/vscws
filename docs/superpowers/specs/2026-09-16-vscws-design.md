@@ -35,6 +35,10 @@ vscws/
     cpp/Dockerfile
     go/devcontainer.json
     java/devcontainer.json
+    js/devcontainer.json
+    bun/devcontainer.json
+    bun/Dockerfile
+    python/devcontainer.json
   mac/settings.json          # VS Code user settings snippet for the Mac
   tests/                     # plain bash tests
   docs/superpowers/specs/    # this spec
@@ -90,6 +94,10 @@ Nothing pinned. VS Code "Rebuild Container Without Cache" moves everything to th
 - **java**: feature `ghcr.io/devcontainers/features/java:1` with `version: latest`, `jdkDistro: tem`, `installMaven: true`, `mavenVersion: latest`, `installGradle: true`, `gradleVersion: latest`. No LTS keyword exists; README shows pinning a number. Extension `vscjava.vscode-java-pack`.
 - **cpp**: Dockerfile `FROM mcr.microsoft.com/devcontainers/base:ubuntu`. GCC toolchain, gdb, ninja, ccache, pkg-config, make from Ubuntu. Latest stable LLVM (clang, clangd, clang-format, clang-tidy, lldb) from apt.llvm.org's script with no version argument. Latest CMake from Kitware's apt repo. Extensions `llvm-vs-code-extensions.vscode-clangd`, `ms-vscode.cmake-tools`, `vadimcn.vscode-lldb`.
 
+- **js** (frontend, Node): Node LTS comes from the common layer. Adds pnpm and yarn via corepack in a `postCreateCommand`. Extensions `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode`.
+- **bun** (small backend, tool or script): Dockerfile `FROM` the base image, installs Bun with its official installer (`https://bun.sh/install`, latest stable, no version argument) into `/usr/local`. Node LTS is still present from the common layer for tooling that needs it. Extensions `oven.bun-vscode`, `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode`.
+- **python** (tool, script or small backend): feature `ghcr.io/devcontainers/features/python:1` with `version: latest` (installs Python, pip, venv). `postCreateCommand` installs `uv` with its official installer (latest stable) for fast envs and `ruff` for lint and format. Extensions `ms-python.python`, `charliermarsh.ruff`.
+
 Adding a preset: new directory under `presets/` with `devcontainer.json` (plus optional `Dockerfile`) and a top-level `"description"` string that `vscws presets` prints and `vscws new` strips.
 
 ## 7. Claude sharing model
@@ -122,7 +130,7 @@ Adding a preset: new directory under `presets/` with `devcontainer.json` (plus o
 ## 10. Testing
 
 - `tests/` bash scripts against a temporary root: merge output for each preset is valid JSON with the expected keys, placeholder replaced, Linux/macOS generated differences, `new` refuses existing dir, `--repo` clone, `ls`, `presets`, error paths.
-- Integration on this VM with the `devcontainer` CLI (installed only for testing, not a tool dependency): build each preset, then inside the container check `go version`, `golangci-lint version`, `java -version`, `mvn -v`, `gradle -v`, `clang --version`, `cmake --version`, `docker ps`, `claude --version`, and that Claude sees the shared login.
+- Integration on this VM with the `devcontainer` CLI (installed only for testing, not a tool dependency): build each preset, then inside the container check `go version`, `golangci-lint version`, `java -version`, `mvn -v`, `gradle -v`, `clang --version`, `cmake --version`, `node --version`, `pnpm --version`, `bun --version`, `python3 --version`, `uv --version`, `ruff --version`, `docker ps`, `claude --version`, and that Claude sees the shared login.
 - macOS: user tests.
 
 ## 11. Decisions confirmed with the user
