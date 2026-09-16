@@ -173,7 +173,7 @@ Adding a preset = new directory with a `devcontainer.json` (and optional `Docker
 ## 12. Git and GitHub
 
 - Recommended: SSH key stays on the Mac; the SSH agent is forwarded through Remote-SSH into the VM and from there into the container by VS Code. `git push` works everywhere, no keys copied.
-- VS Code copies `~/.gitconfig` into the container by default, so name and email carry over. `vscws setup` prompts for them if unset.
+- VS Code copies `~/.gitconfig` into the container by default, so name and email carry over. `setup.sh` prompts for them if unset.
 - Alternative documented in the README: `gh auth login` on the VM with a token, and `gh` inside the container.
 
 ## 13. README contents (bullet points, task oriented)
