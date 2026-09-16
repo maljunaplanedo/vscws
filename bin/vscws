@@ -100,6 +100,17 @@ validate_name() {
 
 preset_dir() { printf '%s/%s' "$PRESETS_DIR" "$1"; }
 
+cmd_presets() {
+  need jq
+  local d name desc
+  for d in "$PRESETS_DIR"/*/; do
+    [ -f "$d/devcontainer.json" ] || continue
+    name="$(basename "$d")"
+    desc="$(jq -r '.description // ""' "$d/devcontainer.json")"
+    printf '%-10s %s\n' "$name" "$desc"
+  done
+}
+
 main() {
   if [ $# -eq 0 ]; then usage >&2; exit 1; fi
   local cmd="$1"; shift
