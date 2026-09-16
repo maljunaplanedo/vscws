@@ -13,7 +13,7 @@ if [ -d "$ws" ]; then printf '%s\n' "$name" | "$VSCWS" rm "$name"; fi
 "$VSCWS" new "$name" --preset "$preset"
 
 devcontainer up --workspace-folder "$ws"
-x() { devcontainer exec --workspace-folder "$ws" bash -lc "$*"; }
+x() { devcontainer exec --workspace-folder "$ws" bash -lc "set -e; $*"; }
 
 echo "== common"
 x 'whoami; pwd; echo CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR'
