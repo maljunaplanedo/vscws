@@ -114,7 +114,7 @@ cmd_presets() {
 # generate_devcontainer PRESET NAME OUTDIR
 # Deep-merges presets/_common.json with the preset, then applies name, Claude dir and mode.
 generate_devcontainer() {
-  local preset="$1" name="$2" out="$3" pdir f
+  local preset="$1" name="$2" out="$3" pdir
   pdir="$(preset_dir "$preset")"
   mkdir -p "$out"
   jq -s \
@@ -135,12 +135,8 @@ generate_devcontainer() {
     | .mounts = ((.mounts // []) | map(if type == "string" then gsub("__VSCWS_CLAUDE_DIR__"; $claude_dir) else . end))
     | if $mode == "remote" then .runArgs = (((.runArgs // []) + ["--network=host"]) | dedupe) else . end
   ' "$PRESETS_DIR/_common.json" "$pdir/devcontainer.json" > "$out/devcontainer.json"
-  # Copy everything else the preset ships (Dockerfile, scripts).
-  for f in "$pdir"/*; do
-    [ -e "$f" ] || continue
-    [ "$(basename "$f")" = devcontainer.json ] && continue
-    cp -R "$f" "$out/"
-  done
+  # Copy everything else the preset ships (Dockerfile, scripts, dotfiles).
+  find "$pdir" -mindepth 1 -maxdepth 1 ! -name devcontainer.json -exec cp -R {} "$out/" \;
 }
 
 cmd_new() {

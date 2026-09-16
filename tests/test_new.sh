@@ -56,4 +56,15 @@ mkdir -p "$TMP/cfgroot"
 printf "VSCWS_ROOT='%s'\nVSCWS_CLAUDE_DIR='/x/claude'\n" "$TMP/cfgroot" > "$VSCWS_CONFIG"
 VSCWS_ROOT= VSCWS_CLAUDE_DIR= "$VSCWS" new proj5 --preset go >/dev/null
 assert_contains "$(jq -r '.mounts[]' "$TMP/cfgroot/proj5/.devcontainer/devcontainer.json")" "source=/x/claude,"
+
+# --- dotfiles in a preset directory are copied too (no dotglob in bash 3.2)
+repo_presets="$(dirname "$VSCWS")/../presets"
+cp -R "$repo_presets" "$TMP/presets"
+printf 'build/\n*.log\n' > "$TMP/presets/go/.dockerignore"
+VSCWS_PRESETS_DIR="$TMP/presets" "$VSCWS" new dotp --preset go >/dev/null
+di="$VSCWS_ROOT/dotp/.devcontainer/.dockerignore"
+[ -f "$di" ] || { echo "  missing $di"; exit 1; }
+assert_eq "$(cat "$di")" "build/
+*.log" "dotfile copied from preset"
+
 echo "  ok"
