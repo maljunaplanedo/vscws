@@ -190,6 +190,63 @@ cmd_new() {
   info "next: vscws open $name"
 }
 
+cmd_ls() {
+  need jq
+  ensure_root
+  local d name preset found=0
+  if [ -d "$VSCWS_ROOT" ]; then
+    for d in "$VSCWS_ROOT"/*/; do
+      [ -d "$d" ] || continue
+      name="$(basename "$d")"
+      if [ -f "$d/.vscws.json" ]; then preset="$(jq -r '.preset // "?"' "$d/.vscws.json")"; else preset="-"; fi
+      printf '%-24s %s\n' "$name" "$preset"
+      found=1
+    done
+  fi
+  [ "$found" -eq 1 ] || info "no workspaces in $VSCWS_ROOT"
+}
+
+cmd_open() {
+  local name="${1:-}" ws
+  [ -n "$name" ] || die "usage: vscws open NAME"
+  validate_name "$name"
+  ensure_root
+  ws="$(ws_path "$name")"
+  [ -d "$ws" ] || die "no such workspace: $ws"
+  if [ "$VSCWS_MODE" = remote ]; then
+    [ -n "$VSCWS_SSH_HOST" ] || die "VSCWS_SSH_HOST is not set in $CONFIG_FILE (the Host alias from your laptop's ~/.ssh/config)"
+    info "Run this on your laptop, then choose \"Reopen in Container\" when VS Code asks:"
+    info "  code --folder-uri \"vscode-remote://ssh-remote+$VSCWS_SSH_HOST$ws\""
+  elif command -v code >/dev/null 2>&1; then
+    code "$ws"
+    info "opened $ws in VS Code; choose \"Reopen in Container\" when asked"
+  else
+    info "Open this folder in VS Code, then choose \"Reopen in Container\":"
+    info "  $ws"
+  fi
+}
+
+cmd_rm() {
+  local name="${1:-}" ws typed ids
+  [ -n "$name" ] || die "usage: vscws rm NAME"
+  validate_name "$name"
+  ensure_root
+  ws="$(ws_path "$name")"
+  [ -d "$ws" ] || die "no such workspace: $ws"
+  printf 'This deletes %s and its dev container. Type the workspace name to confirm: ' "$ws"
+  read -r typed || typed=""
+  [ "$typed" = "$name" ] || die "aborted, nothing deleted"
+  if command -v docker >/dev/null 2>&1; then
+    ids="$(docker ps -aq --filter "label=devcontainer.local_folder=$ws" 2>/dev/null || true)"
+    if [ -n "$ids" ]; then
+      # shellcheck disable=SC2086
+      docker rm -f $ids >/dev/null && info "removed dev container"
+    fi
+  fi
+  rm -rf "$ws"
+  info "deleted $ws"
+}
+
 main() {
   if [ $# -eq 0 ]; then usage >&2; exit 1; fi
   local cmd="$1"; shift
