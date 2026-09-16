@@ -35,7 +35,8 @@ Both modes use the same `vscws` tool, the same presets, and the same generated `
 ```
 vscws/
   README.md                       # human-readable bullet-point instructions
-  bin/vscws                       # the tool, bash 3.2 compatible (macOS default bash)
+  setup.sh                        # one-time machine configuration (needs sudo on Linux), bash 3.2 compatible
+  bin/vscws                       # the everyday tool, no sudo, bash 3.2 compatible (macOS default bash)
   presets/
     _common.json                  # merged into every preset: Claude, docker CLI, gh, base extensions
     cpp/devcontainer.json         # + optional Dockerfile per preset
@@ -48,16 +49,15 @@ vscws/
   docs/superpowers/specs/         # this spec
 ```
 
-- The repo is cloned to `~/vscws` on every machine. `vscws setup` symlinks `bin/vscws` into `~/.local/bin`.
+- The repo is cloned to `~/vscws` on every machine. `./setup.sh` symlinks `bin/vscws` into `~/.local/bin`.
 - Presets are plain JSON files. Editing a preset is the way to change a language's configuration.
 
 ## 5. The `vscws` command
 
-All subcommands, no sudo except `setup`:
+All subcommands, none need sudo:
 
 | Command | What it does |
 |---|---|
-| `vscws setup [--root DIR] [--ssh-host NAME]` | One-time machine configuration (§6). Idempotent, re-runnable. |
 | `vscws new NAME --preset P [--repo URL]` | Creates `$ROOT/NAME`, optionally clones `URL` into it, writes `.devcontainer/` from preset `P` (§7). Refuses if `NAME` exists. If the cloned repo already has `.devcontainer/`, asks before overwriting. |
 | `vscws ls` | Lists workspaces: name, preset, container state (none / stopped / running). |
 | `vscws open NAME` | Remote mode: prints the `code --folder-uri vscode-remote://ssh-remote+HOST/path` command to run on the Mac. Local mode: runs `code path`. |
@@ -67,7 +67,7 @@ All subcommands, no sudo except `setup`:
 | `vscws stop NAME` | Stops the workspace's container. |
 | `vscws rm NAME [--force]` | Stops and removes the container. Deletes the directory only after typing the name to confirm. |
 | `vscws presets` | Lists available presets with their one-line description. |
-| `vscws doctor` | Checks docker, devcontainer CLI, jq, config, Claude login state, prints what is missing. |
+| `vscws doctor` | Checks docker, devcontainer CLI, jq, config, Claude login state, prints what is missing and which `setup.sh` step installs it. |
 
 - Config file: `~/.config/vscws/config`, shell-sourceable `KEY=VALUE`:
   - `VSCWS_ROOT` — workspace root (e.g. `/data/ws` or `~/ws`).
@@ -77,9 +77,9 @@ All subcommands, no sudo except `setup`:
 - Per-workspace marker: `$ROOT/NAME/.vscws.json` with preset name, creation date, tool version. Used by `ls`, `rebuild`, `rm`.
 - Dependencies at runtime: bash 3.2+, `docker`, `jq`, `devcontainer` CLI (for build/rebuild/shell/stop), `git`.
 
-## 6. `vscws setup` (fresh machine configuration)
+## 6. `setup.sh` (fresh machine configuration)
 
-Detects the platform from `uname`. Idempotent: every step checks before acting and prints what it did or skipped.
+Separate script, run once per machine: `./setup.sh [--root DIR] [--ssh-host NAME]`. Detects the platform from `uname`. Idempotent: every step checks before acting and prints what it did or skipped.
 
 ### Linux (Ubuntu, any recent release)
 
@@ -178,7 +178,7 @@ Adding a preset = new directory with a `devcontainer.json` (and optional `Docker
 
 ## 13. README contents (bullet points, task oriented)
 
-- Fresh machine: clone, `./bin/vscws setup`, re-login, verify with `vscws doctor`.
+- Fresh machine: clone, `./setup.sh`, re-login, verify with `vscws doctor`.
 - Mac side: paste `mac/settings.json`, add SSH host entry, install Remote-SSH and Dev Containers extensions.
 - Create a workspace, open it, reopen in container, first-time notes.
 - Run your project's docker compose from the VS Code terminal.
@@ -191,7 +191,7 @@ Adding a preset = new directory with a `devcontainer.json` (and optional `Docker
 
 ## 14. Error handling
 
-- Every command validates its inputs and prints a one-line error and exit code 1: unknown preset, missing workspace, workspace exists, missing dependency (names the `vscws setup` step that installs it).
+- Every command validates its inputs and prints a one-line error and exit code 1: unknown preset, missing workspace, workspace exists, missing dependency (names the `setup.sh` step that installs it).
 - `setup` never deletes anything. Files it changes are backed up under `~/.claude/backups/` or `~/.config/vscws/backups/` with a timestamp.
 - `rm` requires the workspace name typed back unless `--force`.
 - `set -euo pipefail` in every script; no partial writes (generate into a temp dir, then move).
@@ -206,7 +206,7 @@ Adding a preset = new directory with a `devcontainer.json` (and optional `Docker
 
 ## 16. Open decisions confirmed with the user
 
-- Tool name `vscws`. Setup is `vscws setup`, not a separate script.
+- Tool name `vscws`. Machine configuration is a separate `setup.sh`, not a subcommand.
 - Latest stable everywhere; Java means latest GA, README shows how to pin LTS.
 - Host Claude switches to `CLAUDE_CONFIG_DIR` layout with a backup and a fallback symlink.
 - Docker-outside-of-Docker, host networking on Linux only.
