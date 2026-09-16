@@ -166,7 +166,16 @@ cmd_new() {
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
   if [ -n "$repo" ]; then
-    die "--repo is not implemented yet"
+    need git
+    git clone -- "$repo" "$tmp/ws" || die "git clone failed for $repo"
+    if [ -d "$tmp/ws/.devcontainer" ]; then
+      printf 'Repository already has .devcontainer/. Overwrite it with preset %s? [y/N] ' "$preset"
+      read -r answer || answer=""
+      case "$answer" in
+        y|Y|yes|YES) rm -rf "$tmp/ws/.devcontainer" ;;
+        *) die "aborted, nothing created" ;;
+      esac
+    fi
   else
     mkdir "$tmp/ws"
   fi
