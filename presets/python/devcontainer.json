@@ -1,12 +1,6 @@
 {
   "description": "Python: latest stable Python, uv, ruff",
   "build": { "dockerfile": "Dockerfile" },
-  "features": {
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "latest",
-      "installTools": false
-    }
-  },
   "customizations": {
     "vscode": {
       "extensions": [

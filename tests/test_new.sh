@@ -84,9 +84,9 @@ assert_eq "$(jq -r '.features["ghcr.io/devcontainers/features/node:1"].version' 
 assert_eq "$(jq -r '.features["ghcr.io/devcontainers/features/node:1"].pnpmVersion' "$fj")" "latest" "js adds pnpm"
 assert_contains "$(jq -r '.customizations.vscode.extensions[]' "$fj")" "dbaeumer.vscode-eslint"
 
-# --- python: feature plus Dockerfile
+# --- python: no python feature (uv-managed prebuilt Python instead), plus Dockerfile
 fp="$VSCWS_ROOT/w-python/.devcontainer/devcontainer.json"
-assert_eq "$(jq -r '.features["ghcr.io/devcontainers/features/python:1"].version' "$fp")" "latest" "python feature"
+assert_eq "$(jq -r '.features | has("ghcr.io/devcontainers/features/python:1")' "$fp")" "false" "python feature absent"
 assert_contains "$(jq -r '.customizations.vscode.extensions[]' "$fp")" "charliermarsh.ruff"
 
 # --- cpp: clangd and cmake tools
