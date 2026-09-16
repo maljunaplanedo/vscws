@@ -1,0 +1,17 @@
+{
+  "description": "C++: GCC, latest stable LLVM (clang, clangd, lldb), latest CMake, ninja, ccache",
+  "build": { "dockerfile": "Dockerfile" },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.cmake-tools",
+        "vadimcn.vscode-lldb"
+      ],
+      "settings": {
+        "C_Cpp.intelliSenseEngine": "disabled",
+        "cmake.generator": "Ninja"
+      }
+    }
+  }
+}

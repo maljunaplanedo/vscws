@@ -67,4 +67,31 @@ di="$VSCWS_ROOT/dotp/.devcontainer/.dockerignore"
 assert_eq "$(cat "$di")" "build/
 *.log" "dotfile copied from preset"
 
+# --- Dockerfile presets: Dockerfile copied, image dropped, build kept
+for p in cpp bun python; do
+  "$VSCWS" new "w-$p" --preset "$p" >/dev/null
+  d="$VSCWS_ROOT/w-$p/.devcontainer"
+  [ -f "$d/Dockerfile" ] || { echo "  $p: Dockerfile not copied"; exit 1; }
+  assert_eq "$(jq -r '.image // "absent"' "$d/devcontainer.json")" "absent" "$p: image dropped"
+  assert_eq "$(jq -r '.build.dockerfile' "$d/devcontainer.json")" "Dockerfile" "$p: build.dockerfile"
+  grep -q '^FROM mcr.microsoft.com/devcontainers/base:ubuntu' "$d/Dockerfile" || { echo "  $p: wrong base image"; exit 1; }
+done
+
+# --- js: node feature options merged, not replaced
+"$VSCWS" new w-js --preset js >/dev/null
+fj="$VSCWS_ROOT/w-js/.devcontainer/devcontainer.json"
+assert_eq "$(jq -r '.features["ghcr.io/devcontainers/features/node:1"].version' "$fj")" "lts" "js keeps lts"
+assert_eq "$(jq -r '.features["ghcr.io/devcontainers/features/node:1"].pnpmVersion' "$fj")" "latest" "js adds pnpm"
+assert_contains "$(jq -r '.customizations.vscode.extensions[]' "$fj")" "dbaeumer.vscode-eslint"
+
+# --- python: feature plus Dockerfile
+fp="$VSCWS_ROOT/w-python/.devcontainer/devcontainer.json"
+assert_eq "$(jq -r '.features["ghcr.io/devcontainers/features/python:1"].version' "$fp")" "latest" "python feature"
+assert_contains "$(jq -r '.customizations.vscode.extensions[]' "$fp")" "charliermarsh.ruff"
+
+# --- cpp: clangd and cmake tools
+fc="$VSCWS_ROOT/w-cpp/.devcontainer/devcontainer.json"
+assert_contains "$(jq -r '.customizations.vscode.extensions[]' "$fc")" "llvm-vs-code-extensions.vscode-clangd"
+assert_contains "$(jq -r '.customizations.vscode.extensions[]' "$fc")" "ms-vscode.cmake-tools"
+
 echo "  ok"

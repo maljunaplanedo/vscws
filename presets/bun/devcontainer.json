@@ -1,0 +1,13 @@
+{
+  "description": "Bun: latest stable Bun (Node LTS also present), eslint, prettier",
+  "build": { "dockerfile": "Dockerfile" },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "oven.bun-vscode",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}
