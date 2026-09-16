@@ -92,9 +92,10 @@ Detects the platform from `uname`. Idempotent: every step checks before acting a
    - Add `export CLAUDE_CONFIG_DIR="$HOME/.claude"` to `~/.profile` and to the top of `~/.bashrc` (before the interactive-shell early return) and `~/.zshrc` if present. Guarded by a marker comment so it is added once.
    - If `~/.claude.json` is a regular file: back it up to `~/.claude/backups/claude.json.<timestamp>`, move it to `~/.claude/.claude.json`, and leave a symlink `~/.claude.json → ~/.claude/.claude.json` so any process started without the variable still finds it.
    - If `~/.claude.json` is already a symlink or absent: nothing.
-7. Write `~/.config/vscws/config` (asks for root and ssh host if not given as flags; keeps existing values).
-8. Symlink `bin/vscws` into `~/.local/bin`, ensure that is on PATH.
-9. Print next steps: log out/in for the docker group, `claude` to verify login, `gh auth login`, the Mac settings to paste.
+7. tmux-friendly SSH agent: write `~/.ssh/rc` to refresh a stable symlink `~/.ssh/ssh_auth_sock` on every login, and add `set-environment -g SSH_AUTH_SOCK ~/.ssh/ssh_auth_sock` to `~/.tmux.conf` (marker-guarded). Both only if not already present.
+8. Write `~/.config/vscws/config` (asks for root and ssh host if not given as flags; keeps existing values).
+9. Symlink `bin/vscws` into `~/.local/bin`, ensure that is on PATH.
+10. Print next steps: log out/in for the docker group, `claude` to verify login, `gh auth login`, the Mac settings to paste.
 
 ### macOS
 
@@ -117,7 +118,7 @@ Content of `_common.json`:
   - `ghcr.io/devcontainers/features/docker-outside-of-docker` — docker CLI + compose, mounts the host socket.
   - `ghcr.io/devcontainers/features/github-cli`.
   - `ghcr.io/anthropics/devcontainer-features/claude-code` — installs the CLI for the integrated terminal and adds the `anthropic.claude-code` extension. The VS Code panel bundles its own CLI anyway; this is for the terminal.
-- `mounts`: `source=<VSCWS_CLAUDE_DIR>,target=/home/vscode/.claude,type=bind`. The source is substituted by `vscws new` from config (placeholder `__VSCWS_CLAUDE_DIR__`).
+- `mounts`: `source=<VSCWS_CLAUDE_DIR>,target=/home/vscode/.claude,type=bind`. The source is substituted by `vscws new` from config (placeholder `__VSCWS_CLAUDE_DIR__`). If `~/.config/gh` exists on the host at generation time, it is also mounted to `/home/vscode/.config/gh` so the `gh` login is shared.
 - `containerEnv`: `CLAUDE_CONFIG_DIR=/home/vscode/.claude`.
 - `customizations.vscode.extensions`: `anthropic.claude-code`, `eamodio.gitlens`, `ms-azuretools.vscode-containers`.
 - `remoteUser`: `vscode`. On Linux hosts VS Code and the devcontainer CLI remap this user's uid to the host user's uid by default, so files in the bind-mounted workspace keep correct ownership.
