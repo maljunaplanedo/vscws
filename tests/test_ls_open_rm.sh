@@ -30,6 +30,27 @@ out="$(PATH="$TMP/bin" VSCWS_MODE=local "$VSCWS" open a1)"
 assert_contains "$out" "$VSCWS_ROOT/a1"
 assert_contains "$out" "Reopen in Container"
 
+# open, local mode with a working `code` binary on PATH
+cat > "$TMP/bin/code" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$1" > "$TMP/code-arg"
+exit 0
+EOF
+chmod +x "$TMP/bin/code"
+out="$(PATH="$TMP/bin" VSCWS_MODE=local "$VSCWS" open a1)"
+assert_eq "$(cat "$TMP/code-arg")" "$VSCWS_ROOT/a1" "code arg"
+assert_contains "$out" "opened"
+
+# open, local mode with a failing `code` binary on PATH
+cat > "$TMP/bin/code" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$TMP/bin/code"
+if PATH="$TMP/bin" VSCWS_MODE=local "$VSCWS" open a1 >/dev/null 2>"$TMP/err"; then echo "  expected failure when code exits nonzero"; exit 1; fi
+assert_contains "$(cat "$TMP/err")" "vscws: failed to open"
+rm -f "$TMP/bin/code"
+
 # rm: wrong name typed -> nothing deleted
 if printf 'wrong\n' | "$VSCWS" rm a1 >/dev/null 2>"$TMP/err"; then echo "  expected abort"; exit 1; fi
 assert_contains "$(cat "$TMP/err")" "aborted"

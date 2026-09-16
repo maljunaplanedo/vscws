@@ -218,7 +218,7 @@ cmd_open() {
     info "Run this on your laptop, then choose \"Reopen in Container\" when VS Code asks:"
     info "  code --folder-uri \"vscode-remote://ssh-remote+$VSCWS_SSH_HOST$ws\""
   elif command -v code >/dev/null 2>&1; then
-    code "$ws"
+    code "$ws" || die "failed to open $ws in VS Code"
     info "opened $ws in VS Code; choose \"Reopen in Container\" when asked"
   else
     info "Open this folder in VS Code, then choose \"Reopen in Container\":"
