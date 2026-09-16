@@ -13,7 +13,7 @@ if [ -d "$ws" ]; then printf '%s\n' "$name" | "$VSCWS" rm "$name"; fi
 "$VSCWS" new "$name" --preset "$preset"
 
 devcontainer up --workspace-folder "$ws"
-x() { devcontainer exec --workspace-folder "$ws" bash -lc "set -e; $*"; }
+x() { devcontainer exec --workspace-folder "$ws" bash -lc "set -eo pipefail; $1"; }
 
 echo "== common"
 x 'whoami; pwd; echo CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR'
@@ -30,7 +30,7 @@ case "$preset" in
   cpp)    x 'gcc --version | head -1; clang --version | head -1; clangd --version; lldb --version; cmake --version | head -1; ninja --version; ccache --version | head -1' ;;
   js)     x 'node --version; npm --version; pnpm --version' ;;
   bun)    x 'bun --version; node --version' ;;
-  python) x 'python3 --version; uv --version; ruff --version' ;;
+  python) x 'python3 --version; uv --version; ruff --version; cd /tmp && rm -rf vscws-venv && uv venv vscws-venv && vscws-venv/bin/python -c "import sys, json; print(sys.version)" && rm -rf vscws-venv' ;;
   *) echo "no checks for $preset"; exit 1 ;;
 esac
 echo "== $preset OK"
