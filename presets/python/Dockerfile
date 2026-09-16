@@ -6,8 +6,4 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/b
  && uv --version && ruff --version
 
 # Latest stable CPython as a prebuilt python-build-standalone build (no compilation), available to every user.
-ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python \
-    UV_PYTHON_BIN_DIR=/usr/local/bin
-RUN uv python install --default \
- && chmod -R a+rX /opt/uv \
- && python3 --version && python --version
+RUN UV_PYTHON_INSTALL_DIR=/opt/uv/python UV_PYTHON_BIN_DIR=/usr/local/bin uv python install --default && chmod -R a+rX /opt/uv && python3 --version && python --version

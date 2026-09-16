@@ -51,6 +51,8 @@ code --install-extension ms-vscode-remote.remote-ssh
 code --install-extension ms-vscode-remote.remote-containers
 ```
 
+- If `code` is not found, run "Shell Command: Install 'code' command in PATH" from the VS Code command palette first.
+
 - Add the contents of `mac/settings.json` to your VS Code user settings (Cmd+Shift+P → "Preferences: Open User Settings (JSON)"). This keeps laptop extensions out of the containers.
 - Add the VM to `~/.ssh/config`:
 
@@ -86,17 +88,18 @@ VSCWS_CLAUDE_DIR="$HOME/.claude"   # Claude config dir shared into containers
 
 ```bash
 # safe to re-run: does nothing if already done
-if [ -f ~/.claude.json ] && [ ! -L ~/.claude.json ]; then
+if [ -f ~/.claude.json ] && [ ! -L ~/.claude.json ] && [ ! -e ~/.claude/.claude.json ]; then
   mkdir -p ~/.claude/backups && cp ~/.claude.json ~/.claude/backups/claude.json.$(date +%s)
   mv ~/.claude.json ~/.claude/.claude.json && ln -s ~/.claude/.claude.json ~/.claude.json
 fi
 grep -q 'CLAUDE_CONFIG_DIR' ~/.profile 2>/dev/null || printf '\nexport CLAUDE_CONFIG_DIR="$HOME/.claude"\n' >> ~/.profile
-grep -q 'CLAUDE_CONFIG_DIR' ~/.bashrc 2>/dev/null || sed -i '1i export CLAUDE_CONFIG_DIR="$HOME/.claude"' ~/.bashrc
+[ -f ~/.bashrc ] && ! grep -q 'CLAUDE_CONFIG_DIR' ~/.bashrc && sed -i '1i export CLAUDE_CONFIG_DIR="$HOME/.claude"' ~/.bashrc; true
 ```
 
 - Open a new shell and run `claude` to confirm you are still logged in.
 - Skip this step if you prefer: the first container will ask you to log in once, and all containers share that login.
 - On a Mac, skip it: the Mac keeps the login in Keychain. The first container asks for one login, shared by all containers after that.
+- If `~/.claude/.claude.json` already exists (you logged in from a container first), nothing is moved and that login stays the shared one.
 
 ## 4. Create and open a workspace
 
@@ -136,6 +139,7 @@ vscws open myapi                           # prints the command to run on the la
 - Optional `presets/<name>/Dockerfile` starting with `FROM mcr.microsoft.com/devcontainers/base:ubuntu`; then use `"build": { "dockerfile": "Dockerfile" }` in the json.
 - Everything in `presets/_common.json` is merged in automatically. Arrays are concatenated, objects merged.
 - Check it: `vscws presets`, then `bash tests/run.sh`.
+- Need yarn in the js preset? add `"postCreateCommand": "npm install -g yarn"` to `presets/js/devcontainer.json`.
 
 ## 9. Commands
 
@@ -152,7 +156,7 @@ vscws rm NAME                            # delete workspace NAME (asks you to ty
 - `permission denied` on docker: log out and in after `usermod -aG docker`.
 - Port already in use on the VM: another workspace's stack uses it. Stop it or change the port.
 - Claude asks to log in inside a container: on Linux do section 3; on Mac log in once, it is then shared.
-- Build fails with out of memory on a small VM: add swap, `sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`.
+- Build fails with out of memory on a small VM: add swap, `[ -e /swapfile ] || (sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile)`.
 - Slow first build: features download toolchains. Subsequent builds use the cache.
 - Building the cpp preset runs out of disk: its image is about 5 GB, so a build needs at least 6 GB free. Free space with:
   ```

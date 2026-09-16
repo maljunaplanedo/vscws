@@ -30,6 +30,7 @@ RUN set -e; \
 # Latest stable CMake: official binaries from Kitware's GitHub releases (x86_64 and aarch64).
 RUN set -e; \
     v="$(wget -qO- https://api.github.com/repos/Kitware/CMake/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"; \
+    [ -n "$v" ] || { echo "could not determine latest CMake version (GitHub API rate limit?)" >&2; exit 1; }; \
     arch="$(uname -m)"; \
     wget -qO /tmp/cmake.tar.gz "https://github.com/Kitware/CMake/releases/download/v${v}/cmake-${v}-linux-${arch}.tar.gz"; \
     mkdir -p /opt/cmake && tar -xzf /tmp/cmake.tar.gz -C /opt/cmake --strip-components=1 && rm /tmp/cmake.tar.gz; \

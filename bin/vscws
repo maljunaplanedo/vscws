@@ -253,10 +253,10 @@ main() {
   case "$cmd" in
     -h|--help|help)       usage ;;
     -v|--version|version) info "vscws $VSCWS_VERSION" ;;
-    presets)              cmd_presets "$@" ;;
-    new|ls|open|rm)       load_config; "cmd_$cmd" "$@" ;;
+    presets)              cmd_presets ${1+"$@"} ;;
+    new|ls|open|rm)       load_config; "cmd_$cmd" ${1+"$@"} ;;
     *)                    die "unknown command '$cmd' (try: vscws --help)" ;;
   esac
 }
 
-main "$@"
+main ${1+"$@"}

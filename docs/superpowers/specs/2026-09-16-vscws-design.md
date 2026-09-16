@@ -39,6 +39,7 @@ vscws/
     bun/devcontainer.json
     bun/Dockerfile
     python/devcontainer.json
+    python/Dockerfile
   mac/settings.json          # VS Code user settings snippet for the Mac
   tests/                     # plain bash tests
   docs/superpowers/specs/    # this spec
@@ -92,11 +93,11 @@ Nothing pinned. VS Code "Rebuild Container Without Cache" moves everything to th
 
 - **go**: feature `ghcr.io/devcontainers/features/go:1` with `version: latest`, `golangciLintVersion: latest`. Installs Go, gopls, delve, golangci-lint. Extension `golang.go`.
 - **java**: feature `ghcr.io/devcontainers/features/java:1` with `version: latest`, `jdkDistro: tem`, `installMaven: true`, `mavenVersion: latest`, `installGradle: true`, `gradleVersion: latest`. No LTS keyword exists; README shows pinning a number. Extension `vscjava.vscode-java-pack`.
-- **cpp**: Dockerfile `FROM mcr.microsoft.com/devcontainers/base:ubuntu`. GCC toolchain, gdb, ninja, ccache, pkg-config, make from Ubuntu. Latest stable LLVM (clang, clangd, clang-format, clang-tidy, lldb) from apt.llvm.org's script with no version argument. Latest CMake from Kitware's apt repo. Extensions `llvm-vs-code-extensions.vscode-clangd`, `ms-vscode.cmake-tools`, `vadimcn.vscode-lldb`.
+- **cpp**: Dockerfile `FROM mcr.microsoft.com/devcontainers/base:ubuntu`. GCC toolchain, gdb, ninja, ccache, pkg-config, make from Ubuntu. Latest stable LLVM (clang, clangd, clang-format, clang-tidy, lldb) from apt.llvm.org's script with no version argument. Latest CMake as the official binary tarball from Kitware's GitHub releases (the apt repo lags new Ubuntu codenames). Extensions `llvm-vs-code-extensions.vscode-clangd`, `ms-vscode.cmake-tools`, `vadimcn.vscode-lldb`.
 
-- **js** (frontend, Node): Node LTS comes from the common layer. Adds pnpm and yarn via corepack in a `postCreateCommand`. Extensions `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode`.
+- **js** (frontend, Node): Node LTS comes from the common layer. Adds pnpm through the node feature's `pnpmVersion: latest`. yarn is not installed; README shows how to add it. Extensions `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode`.
 - **bun** (small backend, tool or script): Dockerfile `FROM` the base image, installs Bun with its official installer (`https://bun.sh/install`, latest stable, no version argument) into `/usr/local`. Node LTS is still present from the common layer for tooling that needs it. Extensions `oven.bun-vscode`, `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode`.
-- **python** (tool, script or small backend): feature `ghcr.io/devcontainers/features/python:1` with `version: latest` (installs Python, pip, venv). `postCreateCommand` installs `uv` with its official installer (latest stable) for fast envs and `ruff` for lint and format. Extensions `ms-python.python`, `charliermarsh.ruff`.
+- **python**: Dockerfile installs uv and ruff with their official installers system-wide, then `uv python install --default` puts the latest stable prebuilt CPython (python-build-standalone) on PATH. No feature, no source build. Extensions `ms-python.python`, `charliermarsh.ruff`.
 
 Adding a preset: new directory under `presets/` with `devcontainer.json` (plus optional `Dockerfile`) and a top-level `"description"` string that `vscws presets` prints and `vscws new` strips.
 
