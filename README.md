@@ -82,13 +82,16 @@ VSCWS_CLAUDE_DIR="$HOME/.claude"   # Claude config dir shared into containers
 ## 3. Share the Claude login with containers (Linux VM, optional)
 
 - Claude keeps its login in two places: `~/.claude/` and the file `~/.claude.json`. Containers mount `~/.claude/`, so the file must live inside it.
-- Run once (backs up first, leaves a symlink so nothing else breaks):
+- Safe to re-run (backs up first, leaves a symlink so nothing else breaks, skips work already done):
 
 ```bash
-mkdir -p ~/.claude/backups && cp ~/.claude.json ~/.claude/backups/claude.json.$(date +%s)
-mv ~/.claude.json ~/.claude/.claude.json && ln -s ~/.claude/.claude.json ~/.claude.json
-printf '\nexport CLAUDE_CONFIG_DIR="$HOME/.claude"\n' >> ~/.profile
-sed -i '1i export CLAUDE_CONFIG_DIR="$HOME/.claude"' ~/.bashrc
+# safe to re-run: does nothing if already done
+if [ -f ~/.claude.json ] && [ ! -L ~/.claude.json ]; then
+  mkdir -p ~/.claude/backups && cp ~/.claude.json ~/.claude/backups/claude.json.$(date +%s)
+  mv ~/.claude.json ~/.claude/.claude.json && ln -s ~/.claude/.claude.json ~/.claude.json
+fi
+grep -q 'CLAUDE_CONFIG_DIR' ~/.profile 2>/dev/null || printf '\nexport CLAUDE_CONFIG_DIR="$HOME/.claude"\n' >> ~/.profile
+grep -q 'CLAUDE_CONFIG_DIR' ~/.bashrc 2>/dev/null || sed -i '1i export CLAUDE_CONFIG_DIR="$HOME/.claude"' ~/.bashrc
 ```
 
 - Open a new shell and run `claude` to confirm you are still logged in.
@@ -100,7 +103,7 @@ sed -i '1i export CLAUDE_CONFIG_DIR="$HOME/.claude"' ~/.bashrc
 ```bash
 vscws presets                              # see what is available
 vscws new myapi --preset go                # empty project
-vscws new myapi --preset go --repo git@github.com:you/myapi.git   # or clone one
+vscws new myapi2 --preset go --repo git@github.com:you/myapi.git  # or clone one
 vscws open myapi                           # prints the command to run on the laptop
 ```
 
@@ -137,11 +140,11 @@ vscws open myapi                           # prints the command to run on the la
 ## 9. Commands
 
 ```
-vscws new NAME --preset P [--repo URL]
-vscws ls
-vscws presets
-vscws open NAME
-vscws rm NAME
+vscws new NAME --preset P [--repo URL]   # create workspace NAME from preset P
+vscws ls                                 # list workspaces
+vscws presets                            # list available presets
+vscws open NAME                          # print (or run) the VS Code command to open NAME
+vscws rm NAME                            # delete workspace NAME (asks you to type the name)
 ```
 
 ## 10. Troubleshooting
