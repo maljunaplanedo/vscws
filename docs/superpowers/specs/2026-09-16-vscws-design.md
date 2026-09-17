@@ -7,7 +7,7 @@ Revised 2026-09-17: reduced to a single operation (user feedback: helper, not fr
 
 ## 1. Goal
 
-- One command creates a workspace directory for a project from a language preset, ready to "Reopen in Container" in VS Code.
+- One command writes a `.devcontainer/` into a project directory from a language preset, ready to "Reopen in Container" in VS Code.
 - The container has the language's build tools. Versions resolve to the latest stable when the image is built.
 - VS Code installs only the extensions the preset lists.
 - The Claude Code panel works in every container through one shared login directory. No per-container login.
@@ -17,7 +17,7 @@ Revised 2026-09-17: reduced to a single operation (user feedback: helper, not fr
 
 ## 2. Scope boundary
 
-`vscws` does one thing: generate workspace directories from presets. It does not:
+`vscws` does one thing: writes a `.devcontainer/` into a project directory from a preset. It does not:
 
 - install anything, change shell profiles, or configure git, GitHub, tmux or SSH;
 - build images or manage containers (VS Code does that: "Reopen in Container", "Rebuild Container");
@@ -139,7 +139,7 @@ Adding a preset: new directory under `presets/` with `devcontainer.json` (plus o
 
 ## 11. Decisions confirmed with the user
 
-- Tool name `vscws`; it only generates workspaces. No setup script.
+- Tool name `vscws`; it only writes a `.devcontainer/` into a project directory. No setup script.
 - Latest stable everywhere; Java means latest GA, README shows pinning.
 - Docker-outside-of-Docker; host networking on Linux only.
 - Claude login shared through the mounted config directory; host layout change is a documented manual step.

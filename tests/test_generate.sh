@@ -63,4 +63,24 @@ mkdir -p "$TMP/p/nodj/.devcontainer"
 if "$VSCWS" "$TMP/p/nodj" --preset go >/dev/null 2>"$TMP/err"; then echo "  expected failure"; exit 1; fi
 assert_contains "$(cat "$TMP/err")" "has no devcontainer.json"
 
+# --- DIR with an apostrophe and a space generates fine (cleanup trap must not
+# mis-evaluate the path via string interpolation)
+weird="$TMP/we'ird dir"
+"$VSCWS" "$weird" --preset go >/dev/null
+[ -f "$weird/.devcontainer/devcontainer.json" ] || { echo "  weird DIR name did not generate"; exit 1; }
+assert_eq "$(jq -r .name "$weird/.devcontainer/devcontainer.json")" "$(basename "$weird")" "name from weird DIR"
+
+# --- non-writable DIR: fails with a clear message (skip when running as root,
+# which ignores permission bits)
+if [ "$(id -u)" -ne 0 ]; then
+  mkdir -p "$TMP/nowrite"
+  chmod 555 "$TMP/nowrite"
+  if "$VSCWS" "$TMP/nowrite" --preset go >/dev/null 2>"$TMP/err"; then
+    chmod 755 "$TMP/nowrite"
+    echo "  expected failure on non-writable DIR"; exit 1
+  fi
+  assert_contains "$(cat "$TMP/err")" "cannot write"
+  chmod 755 "$TMP/nowrite"
+fi
+
 echo "  ok"

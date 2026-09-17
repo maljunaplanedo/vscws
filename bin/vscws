@@ -104,17 +104,20 @@ main() {
       -v|--version) info "vscws $VSCWS_VERSION"; exit 0 ;;
       --presets)    need jq; list_presets; exit 0 ;;
       --preset)     [ $# -ge 2 ] || die "--preset needs a value"; preset="$2"; shift 2 ;;
+      --)           shift; break ;;
       -*)           die "unknown option '$1' (try: vscws --help)" ;;
       *)            [ -z "$dir" ] || die "unexpected argument '$1'"; dir="$1"; shift ;;
     esac
   done
+  if [ $# -gt 0 ]; then [ -z "$dir" ] || die "unexpected argument '$1'"; dir="$1"; shift; fi
+  [ $# -eq 0 ] || die "unexpected argument '$1'"
   [ -n "$dir" ]    || die "usage: vscws DIR --preset NAME"
   [ -n "$preset" ] || die "--preset is required (see: vscws --presets)"
   need jq
   [ -f "$PRESETS_DIR/$preset/devcontainer.json" ] || die "unknown preset '$preset' (see: vscws --presets)"
 
   mkdir -p "$dir" || die "cannot create directory $dir"
-  dir="$(cd "$dir" && pwd -P)"
+  dir="$(cd "$dir" && pwd -P)" || die "cannot access $dir"
   name="$(basename "$dir")"
   target="$dir/.devcontainer"
   existing="$target/devcontainer.json"
@@ -122,17 +125,20 @@ main() {
     die "$target exists but has no devcontainer.json; remove it or add one"
   fi
 
-  tmp="$(mktemp -d "$dir/.devcontainer.tmp.XXXXXX")"
-  # shellcheck disable=SC2064
-  trap "rm -rf '$tmp'" EXIT
+  tmp="$(mktemp -d "$dir/.devcontainer.tmp.XXXXXX")" || die "cannot write to $dir"
+  trap 'rm -rf "$tmp"' EXIT
   render "$preset" "$name" > "$tmp/devcontainer.json"
   copy_preset_files "$PRESETS_DIR/$preset" "$tmp"
 
   if [ -f "$existing" ]; then
-    jq -e . "$existing" >/dev/null 2>&1 || die "$existing is not plain JSON (comments?), merge it by hand"
+    jq -e 'type == "object"' "$existing" >/dev/null 2>&1 || die "$existing is not a JSON object (comments?), merge it by hand"
     merge_existing "$tmp/devcontainer.json" "$existing" > "$tmp/merged.json"
+    if [ -f "$tmp/Dockerfile" ] && ! jq -e '.build' "$tmp/merged.json" >/dev/null 2>&1; then
+      rm -f "$tmp/Dockerfile"
+      info "note: existing \"image\" kept, preset's Dockerfile not used (remove \"image\" from devcontainer.json to switch to the preset's build)"
+    fi
     info "$existing already exists. Changes the preset would make (your values win, file gets reformatted):"
-    diff -u "$existing" "$tmp/merged.json" || true
+    diff -u <(jq -S . "$existing") <(jq -S . "$tmp/merged.json") || true
     printf 'Merge into %s? [y/N] ' "$target"
     read -r answer || answer=""
     case "$answer" in y|Y|yes|YES) ;; *) die "aborted, nothing changed" ;; esac

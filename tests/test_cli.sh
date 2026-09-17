@@ -28,4 +28,9 @@ if "$VSCWS" "$d" --preset nope >/dev/null 2>"$TMP/err"; then echo "  expected ex
 assert_contains "$(cat "$TMP/err")" "unknown preset"
 [ ! -e "$d/.devcontainer" ] || { echo "  .devcontainer should not exist"; exit 1; }
 
+# -- ends option parsing, so a DIR starting with "-" works
+dashdir="$TMP/-dashdir"
+"$VSCWS" --preset go -- "$dashdir" >/dev/null
+[ -f "$dashdir/.devcontainer/devcontainer.json" ] || { echo "  DIR starting with '-' did not generate"; exit 1; }
+
 echo "  ok"

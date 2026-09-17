@@ -104,6 +104,7 @@ vscws ~/projects/myapi --preset go     # write ~/projects/myapi/.devcontainer/ f
 - Writes `.devcontainer/devcontainer.json`, plus a `Dockerfile` for presets that need one (cpp, bun, python).
 - `DIR` is created if missing; the container's `name` is `basename DIR`.
 - If `.devcontainer/devcontainer.json` already exists, vscws shows a diff and asks before merging: your existing values win over the preset's, arrays (extensions, mounts, runArgs, ...) are appended and de-duplicated, and the file is reformatted. A `Dockerfile` already present in the target is kept, never overwritten.
+- If your existing `devcontainer.json` has comments (VS Code writes them by default), vscws refuses to merge. Remove the comments or merge by hand.
 
 ## 5. Open it in VS Code
 
