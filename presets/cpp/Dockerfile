@@ -10,13 +10,20 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Latest stable LLVM from apt.llvm.org (no version argument = current stable).
+# llvm.sh installs clang, clangd, lld and lldb; clang-format, clang-tidy and libc++ are added on top.
+# Deliberately not `llvm.sh all`, which pulls MLIR, Flang, Polly, BOLT and more (several GB).
 # Falls back to Ubuntu's own packages if apt.llvm.org has no repo for this Ubuntu release yet.
 RUN set -e; \
     wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh && chmod +x /tmp/llvm.sh; \
-    if ! /tmp/llvm.sh all; then \
+    if /tmp/llvm.sh; then \
+      v="$(ls -d /usr/lib/llvm-* | sed 's#.*/llvm-##' | sort -n | tail -1)"; \
+      apt-get install -y --no-install-recommends \
+        "clang-format-$v" "clang-tidy-$v" "libc++-$v-dev" "libc++abi-$v-dev"; \
+    else \
       echo "apt.llvm.org has no packages for this release; using Ubuntu's LLVM packages"; \
       rm -f /etc/apt/sources.list.d/*llvm* /etc/apt/sources.list.d/archive_uri-*; \
-      apt-get update && apt-get install -y --no-install-recommends clang clangd clang-format clang-tidy lldb lld; \
+      apt-get update && apt-get install -y --no-install-recommends \
+        clang clangd clang-format clang-tidy lldb lld libc++-dev libc++abi-dev; \
     fi; \
     rm -f /tmp/llvm.sh; rm -rf /var/lib/apt/lists/*; \
     v="$(ls -d /usr/lib/llvm-* 2>/dev/null | sed 's#.*/llvm-##' | sort -n | tail -1)"; \
@@ -25,7 +32,7 @@ RUN set -e; \
         if [ -x "/usr/bin/$t-$v" ]; then ln -sf "/usr/bin/$t-$v" "/usr/local/bin/$t"; fi; \
       done; \
     fi; \
-    clang --version && clangd --version
+    clang --version && clangd --version && clang-format --version && clang-tidy --version
 
 # Latest stable CMake: official binaries from Kitware's GitHub releases (x86_64 and aarch64).
 RUN set -e; \

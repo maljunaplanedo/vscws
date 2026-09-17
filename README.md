@@ -181,7 +181,7 @@ rm -rf /absolute/path/to/DIR                  # or delete the project entirely
 - Claude asks to log in inside a container: on Linux do section 3; on Mac log in once, it is then shared.
 - Build fails with out of memory on a small VM: add swap, `[ -e /swapfile ] || (sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile)`.
 - Slow first build: features download toolchains. Subsequent builds use the cache.
-- Building the cpp preset runs out of disk: its image is about 5 GB, so a build needs at least 6 GB free. Free space with:
+- Building the cpp preset runs out of disk: its image is about 3 GB and the export step needs about twice that, so keep at least 6 GB free. Free space with:
   ```
   docker builder prune -af
   sudo journalctl --vacuum-size=200M
