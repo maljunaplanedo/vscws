@@ -3,6 +3,8 @@
 Date: 2026-09-16
 Status: draft for user review
 
+Revised 2026-09-17: reduced to a single operation (user feedback: helper, not framework).
+
 ## 1. Goal
 
 - One command creates a workspace directory for a project from a language preset, ready to "Reopen in Container" in VS Code.
@@ -19,7 +21,8 @@ Status: draft for user review
 
 - install anything, change shell profiles, or configure git, GitHub, tmux or SSH;
 - build images or manage containers (VS Code does that: "Reopen in Container", "Rebuild Container");
-- persist caches across rebuilds, combine presets, or support Windows.
+- persist caches across rebuilds, combine presets, or support Windows;
+- keep a workspace root or config file, a marker file, or clone git repos; there is no list, remove or open command — `vscws` writes one `.devcontainer/` and stops.
 
 The README covers prerequisites and host configuration as copy-paste code blocks.
 
@@ -47,21 +50,18 @@ vscws/
 
 ## 4. The `vscws` command
 
-| Command | What it does |
-|---|---|
-| `vscws new NAME --preset P [--repo URL]` | Creates `$VSCWS_ROOT/NAME`. Clones `URL` into it if given. Writes `.devcontainer/` from preset `P` (§5). Refuses if the directory exists. If the clone already has `.devcontainer/`, asks before overwriting. |
-| `vscws ls` | Lists workspaces under the root with their preset. |
-| `vscws presets` | Lists presets with a one-line description. |
-| `vscws open NAME` | Linux: prints `code --folder-uri "vscode-remote://ssh-remote+$VSCWS_SSH_HOST<path>"` to run on the Mac. macOS: runs `code <path>`. |
-| `vscws rm NAME` | Deletes the workspace directory after the name is typed back. Removes a running container of that workspace first if docker is available. |
+```
+vscws DIR --preset NAME     # write DIR/.devcontainer/ from preset NAME
+vscws --presets             # list presets (name + description)
+vscws --version | --help
+```
 
-- Config: `~/.config/vscws/config`, shell-sourceable. Created by `vscws new` on first run with prompts, or written by hand:
-  - `VSCWS_ROOT` — workspace root, e.g. `/data/ws`.
-  - `VSCWS_SSH_HOST` — Linux only: the `Host` alias from the Mac's `~/.ssh/config`. Used only by `open`.
-  - `VSCWS_CLAUDE_DIR` — host directory mounted into containers as Claude config. Default `~/.claude`.
-- Per-workspace marker `.vscws.json` (preset, created date) so `ls` can show the preset.
-- Runtime dependencies: bash 3.2+, `jq`, `git` (only for `--repo`). `docker` optional, only used by `rm`.
-- Errors: one line, exit 1. Generation happens in a temp dir and is moved into place, so a failure leaves nothing behind.
+- `DIR`: any directory, created if missing, resolved to an absolute path. `name` in the generated json is `basename DIR` (§5).
+- Environment: `VSCWS_CLAUDE_DIR` — host directory mounted into containers as Claude config. Default `~/.claude`. (`VSCWS_PRESETS_DIR` is a test-only override.)
+- Merge rule: if `DIR/.devcontainer/devcontainer.json` already exists, vscws deep-merges the preset into it with the existing values winning on conflicts and arrays appended and de-duplicated, shows a `diff -u` of existing vs. merged, and asks `Merge into DIR/.devcontainer? [y/N]`; anything but y/yes aborts with nothing changed. Other preset files (e.g. `Dockerfile`) are copied only when absent in the target. If the existing file has `image`, the merged result drops `build`; if it has `build`, it drops `image`. If `DIR/.devcontainer` exists without a `devcontainer.json`, or the existing `devcontainer.json` is not plain JSON (comments), vscws fails with a clear message and changes nothing.
+- Generation happens in a temp dir inside `DIR` (`DIR/.devcontainer.tmp.XXXXXX`) that is moved into place on success; a failure or abort leaves no temp dir behind.
+- Runtime dependencies: bash 3.2+, `jq`. No config file, no workspace root, no marker file, no git, no docker dependency.
+- Errors: one line `vscws: ...` on stderr, exit 1.
 
 ## 5. Generated `.devcontainer/`
 
@@ -76,14 +76,14 @@ vscws/
   - `ghcr.io/devcontainers/features/github-cli:1`.
   - `ghcr.io/devcontainers/features/node:1` with `version: lts`.
   - `ghcr.io/anthropics/devcontainer-features/claude-code:1` — `claude` for the integrated terminal and the `anthropic.claude-code` extension. The panel bundles its own CLI; this is for the terminal.
-- `mounts`: `source=__VSCWS_CLAUDE_DIR__,target=/home/vscode/.claude,type=bind`. The placeholder is replaced by `vscws new` with the config value.
+- `mounts`: `source=__VSCWS_CLAUDE_DIR__,target=/home/vscode/.claude,type=bind`. The placeholder is replaced by `vscws` with `VSCWS_CLAUDE_DIR`.
 - `containerEnv`: `CLAUDE_CONFIG_DIR=/home/vscode/.claude`.
 - `customizations.vscode.extensions`: `anthropic.claude-code`, `eamodio.gitlens`, `ms-azuretools.vscode-containers`.
 - `remoteUser`: `vscode`. On Linux hosts the uid is remapped to the host user by default, so bind-mounted files keep correct ownership.
 
 Generated object:
 
-- `name`: the workspace name.
+- `name`: `basename DIR`.
 - Linux: `runArgs: ["--network=host"]` so sibling containers' published ports are reachable at `localhost` inside the dev container. VS Code port forwarding still works.
 - macOS: no host networking (opt-in and beta in Docker Desktop). Siblings are reached at `host.docker.internal:<port>`, noted in the README.
 
@@ -99,7 +99,7 @@ Nothing pinned. VS Code "Rebuild Container Without Cache" moves everything to th
 - **bun** (small backend, tool or script): Dockerfile `FROM` the base image, installs Bun with its official installer (`https://bun.sh/install`, latest stable, no version argument) into `/usr/local`. Node LTS is still present from the common layer for tooling that needs it. Extensions `oven.bun-vscode`, `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode`.
 - **python**: Dockerfile installs uv and ruff with their official installers system-wide, then `uv python install --default` puts the latest stable prebuilt CPython (python-build-standalone) on PATH. No feature, no source build. Extensions `ms-python.python`, `charliermarsh.ruff`.
 
-Adding a preset: new directory under `presets/` with `devcontainer.json` (plus optional `Dockerfile`) and a top-level `"description"` string that `vscws presets` prints and `vscws new` strips.
+Adding a preset: new directory under `presets/` with `devcontainer.json` (plus optional `Dockerfile`) and a top-level `"description"` string that `vscws --presets` prints and `vscws` strips.
 
 ## 7. Claude sharing model
 
@@ -117,21 +117,24 @@ Adding a preset: new directory under `presets/` with `devcontainer.json` (plus o
 
 ## 9. README contents (bullets, task oriented)
 
-- **Prerequisites** with install commands in code blocks: Docker (Ubuntu: Docker's official script and docker group; macOS: Docker Desktop), git, jq, VS Code with Remote-SSH and Dev Containers extensions on the Mac, Claude Code on the host.
-- **Install vscws**: clone, symlink `bin/vscws` into `~/.local/bin`, write the config file.
-- **Mac settings**: paste `mac/settings.json` (empties `dev.containers.defaultExtensions` and `remote.SSH.defaultExtensions`), SSH config entry example.
-- **Share the Claude login** (Linux host, optional): the three commands.
-- **Create and open a workspace**: `vscws new`, `vscws open`, "Reopen in Container", what happens on first open.
-- **Run your project's docker compose**: from the VS Code terminal in the container. macOS note on `host.docker.internal`.
-- **Update a language configuration**: edit `presets/<lang>/devcontainer.json` or `Dockerfile`; existing workspaces: re-copy with `vscws new` into a fresh directory, or edit their `.devcontainer/` and "Rebuild Container".
-- **Update tool versions**: "Dev Containers: Rebuild Container Without Cache".
-- **Add a preset**.
-- **Troubleshooting**: docker group not applied, port conflicts, low-RAM VM, Claude asks to log in.
+- **1. Prerequisites** with install commands in code blocks: Docker (Ubuntu: Docker's official script and docker group; macOS: Docker Desktop), git, jq, VS Code with Remote-SSH and Dev Containers extensions on the Mac (including the `mac/settings.json` paste and the `~/.ssh/config` entry), Claude Code on the host.
+- **2. Install vscws**: clone, symlink `bin/vscws` into `~/.local/bin`, `vscws --version`; the only setting is the optional `VSCWS_CLAUDE_DIR` env var.
+- **3. Share the Claude login with containers** (Linux host, optional): the three commands, verbatim.
+- **4. Create a dev container**: `vscws --presets`, `vscws DIR --preset NAME`, what it writes, the merge behaviour when `.devcontainer/` already exists (existing values win, file reformatted, Dockerfile kept).
+- **5. Open it in VS Code**: laptop `code --folder-uri ...` or `open 'vscode://...'`, then "Dev Containers: Reopen in Container"; Mac with local Docker just opens the folder; first open builds; Claude panel appears.
+- **6. Run your project's own Docker**: from the VS Code terminal in the container. macOS note on `host.docker.internal`.
+- **7. Update a language configuration**: edit `presets/<lang>/devcontainer.json` or `Dockerfile`; existing project: run `vscws DIR --preset NAME` again and accept the merge, or edit `.devcontainer/` directly; then "Rebuild Container".
+- **8. Update tool versions**: "Dev Containers: Rebuild Container Without Cache".
+- **9. Add a preset** (including the yarn bullet).
+- **10. Troubleshooting**: docker group not applied, port conflicts, low-RAM VM, Claude asks to log in, cpp disk space.
 
 ## 10. Testing
 
-- `tests/` bash scripts against a temporary root: merge output for each preset is valid JSON with the expected keys, placeholder replaced, Linux/macOS generated differences, `new` refuses existing dir, `--repo` clone, `ls`, `presets`, error paths.
-- Integration on this VM with the `devcontainer` CLI (installed only for testing, not a tool dependency): build each preset, then inside the container check `go version`, `golangci-lint version`, `java -version`, `mvn -v`, `gradle -v`, `clang --version`, `cmake --version`, `node --version`, `pnpm --version`, `bun --version`, `python3 --version`, `uv --version`, `ruff --version`, `docker ps`, `claude --version`, and that Claude sees the shared login.
+- `tests/test_cli.sh`: `--version`, no-args usage, unknown option, `--help`, DIR without `--preset`, `--preset` without DIR, unknown preset creates nothing.
+- `tests/test_presets.sh`: `--presets` lists all six with descriptions, every preset JSON valid, `_common.json` contract.
+- `tests/test_generate.sh`: fresh generation (name, image, feature merges, mounts, host networking, extensions, no leftover temp dir), the macOS branch (no `runArgs`), a relative `DIR`, the three Dockerfile presets, dotfile copying via `VSCWS_PRESETS_DIR`, and the `.devcontainer` without `devcontainer.json` error.
+- `tests/test_merge.sh`: abort on `n` (file unchanged, no temp dir), accept on `y` (existing wins, arrays appended, image/build kept consistent), a second merge that keeps an already-copied `Dockerfile` ("kept existing"), an existing `build.dockerfile` with no `image`, a non-JSON existing file (fails, unchanged), and an aborted merge on empty stdin.
+- `tests/integration.sh PRESET`: builds one preset end to end with the `devcontainer` CLI (installed only for testing, not a tool dependency) and checks `go version`, `golangci-lint version`, `java -version`, `mvn -v`, `gradle -v`, `clang --version`, `cmake --version`, `node --version`, `pnpm --version`, `bun --version`, `python3 --version`, `uv --version`, `ruff --version`, `docker ps`, `claude --version`, and that Claude sees the shared login; cleans up its container and directory before and after a successful run.
 - macOS: user tests.
 
 ## 11. Decisions confirmed with the user

@@ -1,28 +1,24 @@
 #!/usr/bin/env bash
-# vscws — create per-project VS Code dev container workspaces from presets.
-# Compatible with bash 3.2 (macOS default). Dependencies: jq; git for --repo; docker for rm.
+# vscws — write a VS Code dev container config into a project directory from a language preset.
+# bash 3.2 compatible (macOS default). Needs jq.
 set -euo pipefail
 
-VSCWS_VERSION="0.1.0"
+VSCWS_VERSION="0.2.0"
 
 die()  { printf 'vscws: %s\n' "$*" >&2; exit 1; }
 info() { printf '%s\n' "$*"; }
 
 usage() {
   cat <<'EOF'
-Usage: vscws <command> [args]
+Usage: vscws DIR --preset NAME    write DIR/.devcontainer/ from preset NAME
+       vscws --presets            list presets
+       vscws --version | --help
 
-Commands:
-  new NAME --preset P [--repo URL]   create workspace NAME from preset P
-  ls                                 list workspaces
-  presets                            list available presets
-  open NAME                          print (or run) the VS Code command to open NAME
-  rm NAME                            delete workspace NAME (asks you to type the name)
-  --version, -v                      print version
-  --help, -h                         this help
+If DIR/.devcontainer/devcontainer.json already exists, vscws shows the changes
+and asks before merging. Your existing values win over the preset's.
 
-Config file: ~/.config/vscws/config with VSCWS_ROOT, VSCWS_SSH_HOST,
-VSCWS_CLAUDE_DIR (default ~/.claude), VSCWS_MODE (remote|local, auto-detected).
+Environment:
+  VSCWS_CLAUDE_DIR   Claude config directory shared into the container (default ~/.claude)
 EOF
 }
 
@@ -38,70 +34,14 @@ resolve_self_dir() {
 }
 
 BIN_DIR="$(resolve_self_dir)"
-REPO_DIR="$(cd "$BIN_DIR/.." && pwd -P)"
-PRESETS_DIR="${VSCWS_PRESETS_DIR:-$REPO_DIR/presets}"
-CONFIG_FILE="${VSCWS_CONFIG:-$HOME/.config/vscws/config}"
+PRESETS_DIR="${VSCWS_PRESETS_DIR:-$(cd "$BIN_DIR/.." && pwd -P)/presets}"
+CLAUDE_DIR="${VSCWS_CLAUDE_DIR:-$HOME/.claude}"
 
 need() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required but not installed (see README: Prerequisites)"; }
 
-# Single-quote a string for writing into the shell-sourceable config file.
-sq() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+host_networking() { case "$(uname -s)" in Darwin) echo false ;; *) echo true ;; esac; }
 
-default_mode() { case "$(uname -s)" in Darwin) echo local ;; *) echo remote ;; esac; }
-
-# Load ~/.config/vscws/config. Environment variables win over the file.
-load_config() {
-  local root="${VSCWS_ROOT:-}" host="${VSCWS_SSH_HOST:-}" cdir="${VSCWS_CLAUDE_DIR:-}" mode="${VSCWS_MODE:-}"
-  if [ -f "$CONFIG_FILE" ]; then
-    # shellcheck disable=SC1090
-    . "$CONFIG_FILE"
-  fi
-  if [ -n "$root" ]; then VSCWS_ROOT="$root"; fi
-  if [ -n "$host" ]; then VSCWS_SSH_HOST="$host"; fi
-  if [ -n "$cdir" ]; then VSCWS_CLAUDE_DIR="$cdir"; fi
-  if [ -n "$mode" ]; then VSCWS_MODE="$mode"; fi
-  VSCWS_ROOT="${VSCWS_ROOT:-}"
-  VSCWS_SSH_HOST="${VSCWS_SSH_HOST:-}"
-  VSCWS_CLAUDE_DIR="${VSCWS_CLAUDE_DIR:-$HOME/.claude}"
-  VSCWS_MODE="${VSCWS_MODE:-$(default_mode)}"
-  case "$VSCWS_MODE" in remote|local) ;; *) die "VSCWS_MODE must be 'remote' or 'local' (got '$VSCWS_MODE')" ;; esac
-}
-
-# Make sure VSCWS_ROOT is known. On the first interactive run, ask and write the config file.
-ensure_root() {
-  if [ -n "$VSCWS_ROOT" ]; then return 0; fi
-  if [ ! -t 0 ]; then die "VSCWS_ROOT is not set; create $CONFIG_FILE (see README: Install vscws)"; fi
-  local root host=""
-  printf 'Workspace root directory [%s/ws]: ' "$HOME"
-  read -r root
-  root="${root:-$HOME/ws}"
-  case "$root" in "~/"*) root="$HOME/${root#\~/}" ;; "~") root="$HOME" ;; esac
-  if [ "$VSCWS_MODE" = remote ]; then
-    printf 'SSH host alias your laptop uses for this machine (for "vscws open", may be empty): '
-    read -r host
-  fi
-  mkdir -p "$(dirname "$CONFIG_FILE")"
-  {
-    printf 'VSCWS_ROOT=%s\n' "$(sq "$root")"
-    printf 'VSCWS_SSH_HOST=%s\n' "$(sq "$host")"
-    printf 'VSCWS_CLAUDE_DIR=%s\n' "$(sq "$VSCWS_CLAUDE_DIR")"
-  } > "$CONFIG_FILE"
-  info "wrote $CONFIG_FILE"
-  VSCWS_ROOT="$root"
-  VSCWS_SSH_HOST="$host"
-}
-
-ws_path() { printf '%s/%s' "$VSCWS_ROOT" "$1"; }
-
-validate_name() {
-  case "$1" in ""|.*|-*) die "invalid workspace name '$1'" ;; esac
-  printf '%s' "$1" | grep -Eq '^[A-Za-z0-9._-]+$' || die "invalid workspace name '$1' (allowed: letters, digits, . _ -)"
-}
-
-preset_dir() { printf '%s/%s' "$PRESETS_DIR" "$1"; }
-
-cmd_presets() {
-  need jq
+list_presets() {
   local d name desc
   for d in "$PRESETS_DIR"/*/; do
     [ -f "$d/devcontainer.json" ] || continue
@@ -111,152 +51,101 @@ cmd_presets() {
   done
 }
 
-# generate_devcontainer PRESET NAME OUTDIR
-# Deep-merges presets/_common.json with the preset, then applies name, Claude dir and mode.
-generate_devcontainer() {
-  local preset="$1" name="$2" out="$3" pdir f
-  pdir="$(preset_dir "$preset")"
-  mkdir -p "$out"
-  jq -s \
-    --arg name "$name" \
-    --arg claude_dir "$VSCWS_CLAUDE_DIR" \
-    --arg mode "$VSCWS_MODE" '
-    def dedupe: reduce .[] as $x ([]; if any(.[]; . == $x) then . else . + [$x] end);
-    def merge(a; b):
-      (a) as $a | (b) as $b |
-      if ($a | type) == "object" and ($b | type) == "object" then
-        reduce ($b | keys_unsorted[]) as $k ($a; .[$k] = merge($a[$k]; $b[$k]))
-      elif ($a | type) == "array" and ($b | type) == "array" then ($a + $b | dedupe)
-      else $b end;
+JQ_MERGE_DEFS='
+  def dedupe: reduce .[] as $x ([]; if any(.[]; . == $x) then . else . + [$x] end);
+  def merge(a; b):
+    (a) as $a | (b) as $b |
+    if ($a | type) == "object" and ($b | type) == "object" then
+      reduce ($b | keys_unsorted[]) as $k ($a; .[$k] = merge($a[$k]; $b[$k]))
+    elif ($a | type) == "array" and ($b | type) == "array" then ($a + $b | dedupe)
+    else $b end;
+'
+
+# render PRESET NAME  -> stdout: _common.json + preset merged, with name, Claude dir and host networking applied.
+render() {
+  local preset="$1" name="$2"
+  jq -s --arg name "$name" --arg claude_dir "$CLAUDE_DIR" --arg hostnet "$(host_networking)" "$JQ_MERGE_DEFS"'
     merge(.[0]; .[1])
     | del(.description)
     | .name = $name
     | if .build then del(.image) else . end
     | .mounts = ((.mounts // []) | map(if type == "string" then gsub("__VSCWS_CLAUDE_DIR__"; $claude_dir) else . end))
-    | if $mode == "remote" then .runArgs = (((.runArgs // []) + ["--network=host"]) | dedupe) else . end
-  ' "$PRESETS_DIR/_common.json" "$pdir/devcontainer.json" > "$out/devcontainer.json"
-  # Copy everything else the preset ships (Dockerfile, scripts, dotfiles).
-  for f in "$pdir"/* "$pdir"/.[!.]* "$pdir"/..?*; do
+    | if $hostnet == "true" then .runArgs = (((.runArgs // []) + ["--network=host"]) | dedupe) else . end
+  ' "$PRESETS_DIR/_common.json" "$PRESETS_DIR/$preset/devcontainer.json"
+}
+
+# merge_existing GENERATED EXISTING -> stdout: existing values win, arrays appended; image/build kept consistent with existing.
+merge_existing() {
+  jq -s "$JQ_MERGE_DEFS"'
+    .[1] as $e
+    | merge(.[0]; $e)
+    | if $e.build then del(.image) elif $e.image then del(.build) else . end
+  ' "$1" "$2"
+}
+
+# copy_preset_files SRC DST [keep]: copy every file except devcontainer.json, dotfiles included; with "keep", never overwrite.
+copy_preset_files() {
+  local src="$1" dst="$2" keep="${3:-}" f base
+  for f in "$src"/* "$src"/.[!.]* "$src"/..?*; do
     [ -e "$f" ] || continue
-    [ "$(basename "$f")" = devcontainer.json ] && continue
-    cp -R "$f" "$out/"
+    base="$(basename "$f")"
+    [ "$base" = devcontainer.json ] && continue
+    if [ -n "$keep" ] && [ -e "$dst/$base" ]; then info "kept existing $dst/$base"; continue; fi
+    cp -R "$f" "$dst/"
   done
-}
-
-cmd_new() {
-  need jq
-  local name="" preset="" repo="" ws tmp answer
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --preset) [ $# -ge 2 ] || die "--preset needs a value"; preset="$2"; shift 2 ;;
-      --repo)   [ $# -ge 2 ] || die "--repo needs a value";   repo="$2";   shift 2 ;;
-      -*)       die "unknown option '$1' (usage: vscws new NAME --preset P [--repo URL])" ;;
-      *)        [ -z "$name" ] || die "unexpected argument '$1'"; name="$1"; shift ;;
-    esac
-  done
-  [ -n "$name" ]   || die "usage: vscws new NAME --preset P [--repo URL]"
-  validate_name "$name"
-  [ -n "$preset" ] || die "--preset is required (see: vscws presets)"
-  [ -f "$(preset_dir "$preset")/devcontainer.json" ] || die "unknown preset '$preset' (see: vscws presets)"
-  ensure_root
-  ws="$(ws_path "$name")"
-  [ ! -e "$ws" ] || die "workspace already exists: $ws"
-  mkdir -p "$VSCWS_ROOT"
-  tmp="$(mktemp -d "$VSCWS_ROOT/.vscws-tmp.XXXXXX")"
-  # shellcheck disable=SC2064
-  trap "rm -rf '$tmp'" EXIT
-  if [ -n "$repo" ]; then
-    need git
-    git clone -- "$repo" "$tmp/ws" || die "git clone failed for $repo"
-    if [ -d "$tmp/ws/.devcontainer" ]; then
-      printf 'Repository already has .devcontainer/. Overwrite it with preset %s? [y/N] ' "$preset"
-      read -r answer || answer=""
-      case "$answer" in
-        y|Y|yes|YES) rm -rf "$tmp/ws/.devcontainer" ;;
-        *) die "aborted, nothing created" ;;
-      esac
-    fi
-  else
-    mkdir "$tmp/ws"
-  fi
-  generate_devcontainer "$preset" "$name" "$tmp/ws/.devcontainer"
-  jq -n --arg name "$name" --arg preset "$preset" \
-        --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg v "$VSCWS_VERSION" \
-        '{name: $name, preset: $preset, created: $created, vscws: $v}' > "$tmp/ws/.vscws.json"
-  mv "$tmp/ws" "$ws"
-  rm -rf "$tmp"
-  trap - EXIT
-  info "created $ws (preset: $preset)"
-  info "next: vscws open $name"
-}
-
-cmd_ls() {
-  need jq
-  ensure_root
-  local d name preset found=0
-  if [ -d "$VSCWS_ROOT" ]; then
-    for d in "$VSCWS_ROOT"/*/; do
-      [ -d "$d" ] || continue
-      name="$(basename "$d")"
-      if [ -f "$d/.vscws.json" ]; then preset="$(jq -r '.preset // "?"' "$d/.vscws.json")"; else preset="-"; fi
-      printf '%-24s %s\n' "$name" "$preset"
-      found=1
-    done
-  fi
-  [ "$found" -eq 1 ] || info "no workspaces in $VSCWS_ROOT"
-}
-
-cmd_open() {
-  local name="${1:-}" ws
-  [ -n "$name" ] || die "usage: vscws open NAME"
-  validate_name "$name"
-  ensure_root
-  ws="$(ws_path "$name")"
-  [ -d "$ws" ] || die "no such workspace: $ws"
-  if [ "$VSCWS_MODE" = remote ]; then
-    [ -n "$VSCWS_SSH_HOST" ] || die "VSCWS_SSH_HOST is not set in $CONFIG_FILE (the Host alias from your laptop's ~/.ssh/config)"
-    info "Run this on your laptop, then choose \"Reopen in Container\" when VS Code asks:"
-    info "  code --folder-uri \"vscode-remote://ssh-remote+$VSCWS_SSH_HOST$ws\""
-  elif command -v code >/dev/null 2>&1; then
-    code "$ws" || die "failed to open $ws in VS Code"
-    info "opened $ws in VS Code; choose \"Reopen in Container\" when asked"
-  else
-    info "Open this folder in VS Code, then choose \"Reopen in Container\":"
-    info "  $ws"
-  fi
-}
-
-cmd_rm() {
-  local name="${1:-}" ws typed ids
-  [ -n "$name" ] || die "usage: vscws rm NAME"
-  validate_name "$name"
-  ensure_root
-  ws="$(ws_path "$name")"
-  [ -d "$ws" ] || die "no such workspace: $ws"
-  printf 'This deletes %s and its dev container. Type the workspace name to confirm: ' "$ws"
-  read -r typed || typed=""
-  [ "$typed" = "$name" ] || die "aborted, nothing deleted"
-  if command -v docker >/dev/null 2>&1; then
-    ids="$(docker ps -aq --filter "label=devcontainer.local_folder=$ws" 2>/dev/null || true)"
-    if [ -n "$ids" ]; then
-      # shellcheck disable=SC2086
-      docker rm -f $ids >/dev/null && info "removed dev container"
-    fi
-  fi
-  rm -rf "$ws"
-  info "deleted $ws"
 }
 
 main() {
-  if [ $# -eq 0 ]; then usage >&2; exit 1; fi
-  local cmd="$1"; shift
-  case "$cmd" in
-    -h|--help|help)       usage ;;
-    -v|--version|version) info "vscws $VSCWS_VERSION" ;;
-    presets)              cmd_presets ${1+"$@"} ;;
-    new|ls|open|rm)       load_config; "cmd_$cmd" ${1+"$@"} ;;
-    *)                    die "unknown command '$cmd' (try: vscws --help)" ;;
-  esac
+  local dir="" preset="" name target tmp existing answer
+  [ $# -gt 0 ] || { usage >&2; exit 1; }
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help)    usage; exit 0 ;;
+      -v|--version) info "vscws $VSCWS_VERSION"; exit 0 ;;
+      --presets)    need jq; list_presets; exit 0 ;;
+      --preset)     [ $# -ge 2 ] || die "--preset needs a value"; preset="$2"; shift 2 ;;
+      -*)           die "unknown option '$1' (try: vscws --help)" ;;
+      *)            [ -z "$dir" ] || die "unexpected argument '$1'"; dir="$1"; shift ;;
+    esac
+  done
+  [ -n "$dir" ]    || die "usage: vscws DIR --preset NAME"
+  [ -n "$preset" ] || die "--preset is required (see: vscws --presets)"
+  need jq
+  [ -f "$PRESETS_DIR/$preset/devcontainer.json" ] || die "unknown preset '$preset' (see: vscws --presets)"
+
+  mkdir -p "$dir" || die "cannot create directory $dir"
+  dir="$(cd "$dir" && pwd -P)"
+  name="$(basename "$dir")"
+  target="$dir/.devcontainer"
+  existing="$target/devcontainer.json"
+  if [ -e "$target" ] && [ ! -f "$existing" ]; then
+    die "$target exists but has no devcontainer.json; remove it or add one"
+  fi
+
+  tmp="$(mktemp -d "$dir/.devcontainer.tmp.XXXXXX")"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp'" EXIT
+  render "$preset" "$name" > "$tmp/devcontainer.json"
+  copy_preset_files "$PRESETS_DIR/$preset" "$tmp"
+
+  if [ -f "$existing" ]; then
+    jq -e . "$existing" >/dev/null 2>&1 || die "$existing is not plain JSON (comments?), merge it by hand"
+    merge_existing "$tmp/devcontainer.json" "$existing" > "$tmp/merged.json"
+    info "$existing already exists. Changes the preset would make (your values win, file gets reformatted):"
+    diff -u "$existing" "$tmp/merged.json" || true
+    printf 'Merge into %s? [y/N] ' "$target"
+    read -r answer || answer=""
+    case "$answer" in y|Y|yes|YES) ;; *) die "aborted, nothing changed" ;; esac
+    mv "$tmp/merged.json" "$existing"
+    copy_preset_files "$tmp" "$target" keep
+    rm -rf "$tmp"
+    info "merged preset '$preset' into $target"
+  else
+    mv "$tmp" "$target"
+    info "wrote $target (preset: $preset)"
+  fi
+  trap - EXIT
+  info "next: open $dir in VS Code and choose \"Reopen in Container\""
 }
 
 main ${1+"$@"}

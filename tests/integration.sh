@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # Manual integration test: builds a workspace for PRESET with the devcontainer CLI and checks tools inside.
-# Usage: tests/integration.sh PRESET   (needs docker, devcontainer CLI, and VSCWS_ROOT configured)
+# Usage: tests/integration.sh PRESET   (needs docker and the devcontainer CLI)
 set -euo pipefail
 preset="${1:?usage: integration.sh PRESET}"
 HERE="$(cd "$(dirname "$0")" && pwd -P)"
 VSCWS="$HERE/../bin/vscws"
-name="it-$preset"
-root="${VSCWS_ROOT:-$(. "$HOME/.config/vscws/config"; echo "$VSCWS_ROOT")}"
-ws="$root/$name"
+ws="${VSCWS_IT_ROOT:-$HOME/ws}/it-$preset"
 
-if [ -d "$ws" ]; then printf '%s\n' "$name" | "$VSCWS" rm "$name"; fi
-"$VSCWS" new "$name" --preset "$preset"
+cleanup() {
+  ids="$(docker ps -aq --filter "label=devcontainer.local_folder=$ws" 2>/dev/null || true)"
+  [ -n "$ids" ] && docker rm -f $ids >/dev/null
+  rm -rf "$ws"
+}
+
+cleanup
+"$VSCWS" "$ws" --preset "$preset"
 
 devcontainer up --workspace-folder "$ws"
 x() { devcontainer exec --workspace-folder "$ws" bash -lc "set -eo pipefail; $1"; }
@@ -34,3 +38,5 @@ case "$preset" in
   *) echo "no checks for $preset"; exit 1 ;;
 esac
 echo "== $preset OK"
+
+cleanup

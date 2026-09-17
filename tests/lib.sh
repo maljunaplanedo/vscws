@@ -1,12 +1,8 @@
-# Sourced by every test. Isolates the tool from the real config and home.
+# Sourced by every test. Isolates the tool from the real home.
 set -euo pipefail
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-export VSCWS_CONFIG="$TMP/config"
-export VSCWS_ROOT="$TMP/root"
 export VSCWS_CLAUDE_DIR="$TMP/claude"
-export VSCWS_MODE=remote
-export VSCWS_SSH_HOST=myvm
 VSCWS="${VSCWS_BIN:-$(cd "$(dirname "$0")/.." && pwd -P)/bin/vscws}"
 
 assert_eq() {  # actual expected label
