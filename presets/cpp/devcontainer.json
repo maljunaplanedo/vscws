@@ -1,6 +1,8 @@
 {
   "description": "C++: GCC, latest stable LLVM (clang, clangd, lldb), latest CMake, ninja, ccache",
-  "build": { "dockerfile": "Dockerfile" },
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
@@ -13,5 +15,11 @@
         "cmake.generator": "Ninja"
       }
     }
-  }
+  },
+  "capAdd": [
+    "SYS_PTRACE"
+  ],
+  "securityOpt": [
+    "seccomp=unconfined"
+  ]
 }

@@ -83,4 +83,9 @@ if [ "$(id -u)" -ne 0 ]; then
   chmod 755 "$TMP/nowrite"
 fi
 
+# --- cpp: debugger and sanitizer friendly container options
+"$VSCWS" "$TMP/secopt" --preset cpp >/dev/null
+fs="$TMP/secopt/.devcontainer/devcontainer.json"
+assert_eq "$(jq -r '.capAdd | index("SYS_PTRACE")' "$fs")" "0" "cpp capAdd SYS_PTRACE"
+assert_eq "$(jq -r '.securityOpt | index("seccomp=unconfined")' "$fs")" "0" "cpp seccomp unconfined"
 echo "  ok"

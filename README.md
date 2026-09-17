@@ -176,6 +176,7 @@ rm -rf /absolute/path/to/DIR                  # or delete the project entirely
 
 ## 11. Troubleshooting
 
+- ThreadSanitizer aborts with "unable to disable ASLR", or gdb/lldb warn about address space randomization: the container was created before the cpp preset gained `capAdd: SYS_PTRACE` and `securityOpt: seccomp=unconfined`. Run `vscws DIR --preset cpp` again, accept the merge, then "Rebuild Container".
 - `permission denied` on docker: log out and in after `usermod -aG docker`.
 - Port already in use on the VM: another project's stack uses it. Stop it or change the port.
 - Claude asks to log in inside a container: on Linux do section 3; on Mac log in once, it is then shared.
