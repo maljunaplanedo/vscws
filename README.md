@@ -66,7 +66,7 @@ Host myvm
 ## 2. Install vscws
 
 ```bash
-git clone <this repo url> ~/vscws
+git clone https://github.com/maljunaplanedo/vscws.git ~/vscws
 mkdir -p ~/.local/bin && ln -sf ~/vscws/bin/vscws ~/.local/bin/vscws
 # make sure ~/.local/bin is on PATH, then:
 vscws --version
