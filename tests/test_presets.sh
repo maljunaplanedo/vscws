@@ -30,4 +30,6 @@ for feat in docker-outside-of-docker github-cli node anthropics/devcontainer-fea
 done
 assert_eq "$(jq -r '.features["ghcr.io/devcontainers/features/docker-outside-of-docker:1"].dockerDashComposeVersion' "$c")" "none" "docker-outside-of-docker compose version"
 assert_contains "$(jq -r '.customizations.vscode.extensions[]' "$c")" "anthropic.claude-code"
+assert_eq "$(jq -r '.customizations.vscode.settings["chat.disableAIFeatures"]' "$c")" "true" "copilot disabled"
+assert_eq "$(jq -r '.customizations.vscode.settings["github.copilot.enable"]["*"]' "$c")" "false" "copilot completions off"
 echo "  ok"

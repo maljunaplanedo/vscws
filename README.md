@@ -4,7 +4,7 @@ Writes a VS Code dev container config into a project directory from a language p
 
 - The container has the language's tools, all at the latest stable version at build time.
 - VS Code installs only the extensions listed in the preset.
-- The Claude Code panel works in every container with one shared login.
+- The Claude Code panel works in every container with one shared login. Copilot and all built-in AI completions are disabled inside containers; AI help is only what you ask for in the Claude panel.
 - Your project's own `docker compose` runs from inside the container against the host Docker.
 
 ## 1. Prerequisites
@@ -52,7 +52,7 @@ code --install-extension ms-vscode-remote.remote-containers
 
 - If `code` is not found, run "Shell Command: Install 'code' command in PATH" from the VS Code command palette first.
 
-- Add the contents of `mac/settings.json` to your VS Code user settings (Cmd+Shift+P → "Preferences: Open User Settings (JSON)"). This keeps laptop extensions out of the containers.
+- Add the contents of `mac/settings.json` to your VS Code user settings (Cmd+Shift+P → "Preferences: Open User Settings (JSON)"). This keeps laptop extensions out of the containers and stops VS Code from auto-installing Copilot into them.
 - Add the VM to `~/.ssh/config`:
 
 ```

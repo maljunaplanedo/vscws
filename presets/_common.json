@@ -25,7 +25,13 @@
         "anthropic.claude-code",
         "eamodio.gitlens",
         "ms-azuretools.vscode-containers"
-      ]
+      ],
+      "settings": {
+        "chat.disableAIFeatures": true,
+        "github.copilot.enable": {
+          "*": false
+        }
+      }
     }
   }
 }

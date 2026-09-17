@@ -1,4 +1,12 @@
 {
   "dev.containers.defaultExtensions": [],
-  "remote.SSH.defaultExtensions": []
+  "remote.SSH.defaultExtensions": [],
+  "remote.extensionKind": {
+    "github.copilot": [
+      "ui"
+    ],
+    "github.copilot-chat": [
+      "ui"
+    ]
+  }
 }
