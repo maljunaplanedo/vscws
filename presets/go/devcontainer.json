@@ -8,7 +8,15 @@
   },
   "customizations": {
     "vscode": {
-      "extensions": ["golang.go"]
+      "extensions": [
+        "golang.go"
+      ],
+      "settings": {
+        "go.lintTool": "golangci-lint-v2",
+        "go.alternateTools": {
+          "golangci-lint-v2": "/go/bin/golangci-lint"
+        }
+      }
     }
   }
 }
