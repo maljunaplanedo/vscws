@@ -72,7 +72,7 @@ vscws/
 - `image`: `mcr.microsoft.com/devcontainers/base:ubuntu` — tracks the latest Ubuntu LTS, user `vscode` uid 1000, multi-arch.
 - `workspaceMount` and `workspaceFolder`: bind the workspace to the identical absolute path inside the container via `${localWorkspaceFolder}`. This makes compose bind mounts like `./:/app` work with the host daemon, and keeps Claude's per-project state keyed the same inside and outside.
 - `features`:
-  - `ghcr.io/devcontainers/features/docker-outside-of-docker:1` — docker CLI and compose, mounts the host socket.
+  - `ghcr.io/devcontainers/features/docker-outside-of-docker:1` with `dockerDashComposeVersion: none` — docker CLI and the `docker compose` plugin from apt, mounts the host socket. The option skips the feature's extra standalone `docker-compose` download, which breaks when a new compose release changes its checksum file.
   - `ghcr.io/devcontainers/features/github-cli:1`.
   - `ghcr.io/devcontainers/features/node:1` with `version: lts`.
   - `ghcr.io/anthropics/devcontainer-features/claude-code:1` — `claude` for the integrated terminal and the `anthropic.claude-code` extension. The panel bundles its own CLI; this is for the terminal.
