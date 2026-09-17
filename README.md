@@ -147,7 +147,34 @@ open 'vscode://vscode-remote/ssh-remote+myvm/home/<user>/projects/myapi'
 - Check it: `vscws --presets`, then `bash tests/run.sh`.
 - Need yarn in the js preset? add `"postCreateCommand": "npm install -g yarn"` to `presets/js/devcontainer.json`.
 
-## 10. Troubleshooting
+## 10. Remove a dev container
+
+- Everything vscws wrote is `DIR/.devcontainer/`. Docker keeps the container and image separately. Remove what you no longer need, in this order.
+- Close the VS Code window for that folder first (or Cmd+Shift+P → "Dev Containers: Reopen Folder Locally").
+- Remove the container (VS Code labels it with the folder path):
+
+```bash
+docker rm -f $(docker ps -aq --filter "label=devcontainer.local_folder=/absolute/path/to/DIR")
+```
+
+- Remove the image. VS Code names it `vsc-<folder name>-<hash>`:
+
+```bash
+docker images "vsc-*"
+docker rmi <image id>
+```
+
+- Remove the config, or the whole project:
+
+```bash
+rm -rf /absolute/path/to/DIR/.devcontainer   # keep the project, drop the dev container config
+rm -rf /absolute/path/to/DIR                  # or delete the project entirely
+```
+
+- Optional, frees the most space: `docker builder prune -af` removes the build cache shared by all dev containers. Keep the `vscode` Docker volume; it holds the VS Code server used by every container.
+- Alternative for the container and image: Cmd+Shift+P → "Dev Containers: Clean Up Dev Containers..." removes stopped containers and images whose folders no longer exist.
+
+## 11. Troubleshooting
 
 - `permission denied` on docker: log out and in after `usermod -aG docker`.
 - Port already in use on the VM: another project's stack uses it. Stop it or change the port.
