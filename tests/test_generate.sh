@@ -88,6 +88,18 @@ fi
 fs="$TMP/secopt/.devcontainer/devcontainer.json"
 assert_eq "$(jq -r '.capAdd | index("SYS_PTRACE")' "$fs")" "0" "cpp capAdd SYS_PTRACE"
 assert_eq "$(jq -r '.securityOpt | index("seccomp=unconfined")' "$fs")" "0" "cpp seccomp unconfined"
-assert_eq "$(jq -r '.customizations.vscode.settings["clangd.fallbackFlags"][0]' "$fs")" "-std=c++23" "cpp clangd fallback std"
+assert_eq "$(jq -r '.customizations.vscode.settings["clangd.fallbackFlags"][0]' "$fs")" '-std=${env:VSCWS_CXX_STD}' "cpp clangd fallback std"
 assert_eq "$(jq -r '.customizations.vscode.settings["cmake.configureOnOpen"]' "$fs")" "true" "cpp configure on open"
+# --- cpp: the standard probe script ships with the preset and picks the newest draft
+[ -x "$TMP/secopt/.devcontainer/vscws-cxx-std" ] || { echo "  vscws-cxx-std not copied or not executable"; exit 1; }
+mkdir -p "$TMP/fakecc" && cat > "$TMP/fakecc/clang++" <<'FAKE'
+#!/bin/sh
+echo "note: use 'c++23' for 'ISO C++ 2023 DIS' standard" >&2
+echo "note: use 'c++2c' or 'c++26' for 'Working draft for C++2c' standard" >&2
+echo "note: use 'c++2d' for 'Working draft for C++2d' standard" >&2
+exit 1
+FAKE
+chmod +x "$TMP/fakecc/clang++"
+assert_eq "$(CXX="$TMP/fakecc/clang++" "$TMP/secopt/.devcontainer/vscws-cxx-std")" "c++2d" "probe picks newest draft"
+assert_eq "$(CXX=/nonexistent "$TMP/secopt/.devcontainer/vscws-cxx-std")" "c++23" "probe fallback"
 echo "  ok"

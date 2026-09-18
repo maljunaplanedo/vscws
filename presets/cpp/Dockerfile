@@ -34,6 +34,14 @@ RUN set -e; \
     fi; \
     clang --version && clangd --version && clang-format --version && clang-tidy --version
 
+# Newest C++ standard the installed clang accepts (drafts included, e.g. c++2c), exported for clangd's
+# fallback flags. Login shells and the VS Code extension host pick it up from /etc/profile.d.
+COPY vscws-cxx-std /usr/local/bin/vscws-cxx-std
+RUN chmod +x /usr/local/bin/vscws-cxx-std \
+ && std="$(vscws-cxx-std)" \
+ && printf 'export VSCWS_CXX_STD=%s\n' "$std" > /etc/profile.d/vscws-cxx-std.sh \
+ && echo "VSCWS_CXX_STD=$std"
+
 # Latest stable CMake: official binaries from Kitware's GitHub releases (x86_64 and aarch64).
 RUN set -e; \
     v="$(wget -qO- https://api.github.com/repos/Kitware/CMake/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"; \

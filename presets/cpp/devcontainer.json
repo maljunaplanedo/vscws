@@ -15,7 +15,7 @@
         "cmake.generator": "Ninja",
         "cmake.configureOnOpen": true,
         "clangd.fallbackFlags": [
-          "-std=c++23"
+          "-std=${env:VSCWS_CXX_STD}"
         ]
       }
     }

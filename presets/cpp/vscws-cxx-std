@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Prints the newest C++ standard name the compiler accepts, drafts included (e.g. c++2c).
+# Used at image build time to set VSCWS_CXX_STD for clangd's fallback flags. Falls back to c++23.
+set -u
+cxx="${CXX:-clang++}"
+names="$("$cxx" -std=vscws-probe -x c++ -fsyntax-only /dev/null 2>&1 | grep -o "'c++[0-9a-z]*'" | tr -d "'" | sort -u)"
+best=""; bestkey=0
+for n in $names; do
+  s="${n#c++}"
+  case "$s" in
+    2[a-z])  # draft alias: 2a=20, 2b=23, 2c=26, 2d=29 ... preferred on ties
+      i=$(printf '%d' "'${s#2}"); key=$(( (2020 + 3 * (i - 97)) * 10 + 1 )) ;;
+    [0-9][0-9])
+      if [ "$((10#$s))" -lt 50 ]; then key=$(( (2000 + 10#$s) * 10 )); else key=$(( (1900 + 10#$s) * 10 )); fi ;;
+    *) continue ;;
+  esac
+  if [ "$key" -gt "$bestkey" ]; then best="$n"; bestkey="$key"; fi
+done
+printf '%s\n' "${best:-c++23}"
