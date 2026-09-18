@@ -34,13 +34,17 @@ RUN set -e; \
     fi; \
     clang --version && clangd --version && clang-format --version && clang-tidy --version
 
-# Newest C++ standard the installed clang accepts (drafts included, e.g. c++2c), exported for clangd's
-# fallback flags. Login shells and the VS Code extension host pick it up from /etc/profile.d.
+# Newest C++ standard the installed clang accepts (drafts included, e.g. c++2c) becomes clang's default:
+# a driver config file next to the binaries makes clang++, and clangd for files without a compile
+# command, use it. Explicit -std flags (a project's CMake) still override it. Also exported as VSCWS_CXX_STD.
 COPY vscws-cxx-std /usr/local/bin/vscws-cxx-std
-RUN chmod +x /usr/local/bin/vscws-cxx-std \
- && std="$(vscws-cxx-std)" \
- && printf 'export VSCWS_CXX_STD=%s\n' "$std" > /etc/profile.d/vscws-cxx-std.sh \
- && echo "VSCWS_CXX_STD=$std"
+RUN set -e; chmod +x /usr/local/bin/vscws-cxx-std; \
+    std="$(vscws-cxx-std)"; \
+    bindir="$(dirname "$(readlink -f "$(command -v clang++)")")"; \
+    printf -- '-std=%s\n' "$std" > "$bindir/clang++.cfg"; \
+    printf -- '-std=%s\n' "$std" > "$bindir/clang.cfg"; \
+    printf 'export VSCWS_CXX_STD=%s\n' "$std" > /etc/profile.d/vscws-cxx-std.sh; \
+    echo "VSCWS_CXX_STD=$std ($bindir)"
 
 # Latest stable CMake: official binaries from Kitware's GitHub releases (x86_64 and aarch64).
 RUN set -e; \

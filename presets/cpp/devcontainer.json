@@ -13,10 +13,7 @@
       "settings": {
         "C_Cpp.intelliSenseEngine": "disabled",
         "cmake.generator": "Ninja",
-        "cmake.configureOnOpen": true,
-        "clangd.fallbackFlags": [
-          "-std=${env:VSCWS_CXX_STD}"
-        ]
+        "cmake.configureOnOpen": true
       }
     }
   },

@@ -88,7 +88,6 @@ fi
 fs="$TMP/secopt/.devcontainer/devcontainer.json"
 assert_eq "$(jq -r '.capAdd | index("SYS_PTRACE")' "$fs")" "0" "cpp capAdd SYS_PTRACE"
 assert_eq "$(jq -r '.securityOpt | index("seccomp=unconfined")' "$fs")" "0" "cpp seccomp unconfined"
-assert_eq "$(jq -r '.customizations.vscode.settings["clangd.fallbackFlags"][0]' "$fs")" '-std=${env:VSCWS_CXX_STD}' "cpp clangd fallback std"
 assert_eq "$(jq -r '.customizations.vscode.settings["cmake.configureOnOpen"]' "$fs")" "true" "cpp configure on open"
 # --- cpp: the standard probe script ships with the preset and picks the newest draft
 [ -x "$TMP/secopt/.devcontainer/vscws-cxx-std" ] || { echo "  vscws-cxx-std not copied or not executable"; exit 1; }
