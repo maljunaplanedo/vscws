@@ -88,4 +88,6 @@ fi
 fs="$TMP/secopt/.devcontainer/devcontainer.json"
 assert_eq "$(jq -r '.capAdd | index("SYS_PTRACE")' "$fs")" "0" "cpp capAdd SYS_PTRACE"
 assert_eq "$(jq -r '.securityOpt | index("seccomp=unconfined")' "$fs")" "0" "cpp seccomp unconfined"
+assert_eq "$(jq -r '.customizations.vscode.settings["clangd.fallbackFlags"][0]' "$fs")" "-std=c++23" "cpp clangd fallback std"
+assert_eq "$(jq -r '.customizations.vscode.settings["cmake.configureOnOpen"]' "$fs")" "true" "cpp configure on open"
 echo "  ok"

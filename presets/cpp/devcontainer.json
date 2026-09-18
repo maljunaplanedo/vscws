@@ -12,7 +12,11 @@
       ],
       "settings": {
         "C_Cpp.intelliSenseEngine": "disabled",
-        "cmake.generator": "Ninja"
+        "cmake.generator": "Ninja",
+        "cmake.configureOnOpen": true,
+        "clangd.fallbackFlags": [
+          "-std=c++23"
+        ]
       }
     }
   },
