@@ -126,6 +126,7 @@ open 'vscode://vscode-remote/ssh-remote+myvm/home/<user>/projects/myapi'
 - Open a terminal in VS Code (inside the dev container) and run `docker compose up` as usual. It runs on the host Docker.
 - Relative bind mounts in compose files work because the workspace path is the same inside and outside.
 - Linux VM: services published on a port are reachable at `localhost:<port>` from the dev container.
+- Because of that host networking, VS Code auto-forwards only ports opened by processes started in its own terminal (`remote.autoForwardPortsSource: hybrid`, set by the preset). Anything else: Ports panel → "Forward a Port".
 - Mac: use `host.docker.internal:<port>` instead of `localhost`.
 
 ## 7. Update a language configuration
